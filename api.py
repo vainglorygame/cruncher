@@ -105,8 +105,8 @@ class Cruncher(joblib.worker.Worker):
                     """, stat["win_rate"], stat["cs_per_min"],
                     stat["gold_per_min"])
                 await self._con.fetch("""
-                    INSERT INTO hero_stats(hero_id, dimension_id, stats_id)
-                    VALUES($1, $2, $3)
+                    INSERT INTO hero_stats(hero_id, dimension_id, stats_id, computed_on)
+                    VALUES($1, $2, $3, NOW())
                     """, stat["id"], dimension["id"],
                     stat_id["id"])
 
