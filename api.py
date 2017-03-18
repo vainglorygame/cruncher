@@ -77,6 +77,8 @@ class Cruncher(joblib.worker.Worker):
                 filter_query = "WHERE match.patch_version='" + value + "'"
             if field == "recent_matches":
                 filter_query = "WHERE match.api_id IN (SELECT api_id FROM match ORDER BY created_at DESC LIMIT " + value + ")"
+            if field == "skill_tier":
+                filter_query = "WHERE participant.skill_tier=" + value
 
             stats = await self._con.fetch("""
             SELECT
