@@ -117,11 +117,10 @@ async def startup():
     worker = Cruncher()
     await worker.connect(db_config, queue_db)
     await worker.setup()
-    await worker.start(batchlimit=1)
+    await worker.run(batchlimit=1)
 
 
 logging.basicConfig(level=logging.DEBUG)
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(startup())
-loop.run_forever()
