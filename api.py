@@ -102,13 +102,13 @@ class Cruncher(joblib.worker.Worker):
 
             for stat in stats:
                 stat_id = await self._con.fetchrow("""
-                    INSERT INTO stats(win_rate, pick_rate, cs_per_min, gold_per_min)
-                    VALUES($1, $2, $3)
-                    RETURNING stats.id
+                    INSERT INTO hero_stats(win_rate, pick_rate, cs_per_min, gold_per_min)
+                    VALUES($1, $2, $3, $4)
+                    RETURNING hero_stats.id
                     """, stat["win_rate"], stat["pick_rate"], stat["cs_per_min"],
                     stat["gold_per_min"])
                 await self._con.fetch("""
-                    INSERT INTO hero_stats(hero_id, dimension_id, stats_id, computed_on)
+                    INSERT INTO hero_dimension(hero_id, dimension_id, stats_id, computed_on)
                     VALUES($1, $2, $3, NOW())
                     """, stat["id"], dimension["id"],
                     stat_id["id"])
