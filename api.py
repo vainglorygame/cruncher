@@ -84,6 +84,7 @@ class Cruncher(joblib.worker.Worker):
             SELECT
                 heros.id,
                 SUM(participant.winner::INT)/COUNT(participant.winner)::FLOAT AS win_rate,
+                COUNT(participant.hero)/(SELECT COUNT(hero) FROM participant)::FLOAT AS pick_rate,
                 SUM(60*participant.minion_kills/match.duration::FLOAT)/COUNT(participant.farm)::FLOAT AS cs_per_min,
                 0 AS gold_per_min
             FROM participant
@@ -101,10 +102,10 @@ class Cruncher(joblib.worker.Worker):
 
             for stat in stats:
                 stat_id = await self._con.fetchrow("""
-                    INSERT INTO stats(win_rate, cs_per_min, gold_per_min)
+                    INSERT INTO stats(win_rate, pick_rate, cs_per_min, gold_per_min)
                     VALUES($1, $2, $3)
                     RETURNING stats.id
-                    """, stat["win_rate"], stat["cs_per_min"],
+                    """, stat["win_rate"], stat["pick_rate"], stat["cs_per_min"],
                     stat["gold_per_min"])
                 await self._con.fetch("""
                     INSERT INTO hero_stats(hero_id, dimension_id, stats_id, computed_on)
