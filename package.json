@@ -1,0 +1,19 @@
+{
+  "name": "cruncher",
+  "version": "2.0.0",
+  "description": "",
+  "main": "worker.js",
+  "dependencies": {
+    "amqplib": "^0.5.1",
+    "mysql": "^2.13.0",
+    "object-hash": "^1.1.7",
+    "sequelize": "^3.30.4",
+    "sleep-promise": "^2.0.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "schneefux",
+  "license": "UNLICENSED"
+}
