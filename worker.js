@@ -9,7 +9,7 @@ var amqp = require("amqplib"),
 
 var RABBITMQ_URI = process.env.RABBITMQ_URI,
     DATABASE_URI = process.env.DATABASE_URI,
-    BATCHSIZE = parseInt(process.env.BATCHSIZE) || 5,  // players + globals
+    BATCHSIZE = parseInt(process.env.BATCHSIZE) || 200,  // players + globals
     IDLE_TIMEOUT = parseFloat(process.env.IDLE_TIMEOUT) || 1000;  // ms
 
 (async () => {
@@ -29,73 +29,52 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
     }
     model = require("../orm/model")(seq, Seq);
 
-    await seq.sync();
-
-    await ch.prefetch(1);  // TODO batching
-
-    ch.consume("crunch", async (msg) => {
-        if (msg.properties.type == "global") {}
-
-        try {
-            if (msg.properties.type == "player")
-                await calculate_player_point(msg.content.toString());
-            console.log("acking");
-            await ch.ack(msg);
-        } catch (err) {
-            console.error(err);
-            await ch.nack(msg, false, false);  // nack and do not requeue
-        }
-    }, { noAck: false });
-
-    async function calculate_player_point(player_api_id) {
-        let win_rate, pick_rate, gold_per_min;
-
-        let player = await model.Player.findOne(
-            { where: { api_id: player_api_id } });
-        // TODO cache dimensions
-        // Series and Filter are special
-        let dimensions = [model.Series, model.Filter, model.Hero, model.GameMode],
-            player_dimensions = ["series", "filter", "hero", "game_mode"],
-            dimension_cache = [];
-        // create a 3D array
-        // [[ ["hero", "Vox"], ["hero", "Taka"], …], [ ["game_mode", "ranked"], … ], …]
-        // (will not use "Vox" but the index instead)
-        await Promise.all(
-            dimensions.map(async (d, idx) =>
-                dimension_cache[idx] = 
-                    (await d.findAll()).map((o) => [d, o]))
-        );
-
-        function cartesian(arr) {
-            return Array.prototype.reduce.call(arr, function(a, b) {
-                let ret = [];
-                a.forEach(function(a) {
-                    b.forEach(function(b) {
-                        ret.push(a.concat([b]));
-                    });
+    function cartesian(arr) {
+        return Array.prototype.reduce.call(arr, function(a, b) {
+            let ret = [];
+            a.forEach(function(a) {
+                b.forEach(function(b) {
+                    ret.push(a.concat([b]));
                 });
-                return ret;
-            }, [[]]);
-        }
-        // create an array with every possible combination
-        // hero x game mode x …
-        // Vox  x casual    x …
-        // SAW  x casual    x …
-        // …
-        // Vox  x ranked    x …
-        // SAW  x ranked    x …
-        // …
-        // Vox  x ANY       x …
-        let combos = cartesian(dimension_cache);
-        await Promise.all(combos.map(async (combo) => {
+            });
+            return ret;
+        }, [[]]);
+    }
+
+    let dimension_cache = [];
+    // create a 3D array
+    // [[ ["hero", "Vox"], ["hero", "Taka"], …], [ ["game_mode", "ranked"], … ], …]
+    // (will not use "Vox" but the index instead)
+    await Promise.all(
+        [model.Series, model.Filter, model.Hero,
+            model.GameMode].map(async (d, idx) =>
+            dimension_cache[idx] =
+                (await d.findAll()).map((o) => [d, o]))
+    );
+
+    // create an array with every possible combination
+    // hero x game mode x …
+    // Vox  x casual    x …
+    // SAW  x casual    x …
+    // …
+    // Vox  x ranked    x …
+    // SAW  x ranked    x …
+    // …
+    // Vox  x ANY       x …
+    let points = cartesian(dimension_cache);
+
+    // return every possible [query, insert] combination
+    function calculate_point(dimensions) {
+        return points.map((point) => {
+            // Series and Filter are special
             let where_aggr = {},
                 where_links = {};
             // create skeleton: where hero_id=$hero
             // for aggregation, use series as range
             // for links, use the id
-            combo.map((tuple) => {
+            point.forEach((tuple) => {
                 // [table name, table element]
-                if (player_dimensions.indexOf(tuple[0].tableName) > -1) {
+                if (dimensions.indexOf(tuple[0].tableName) > -1) {
                     if (tuple[1].get("name") != "all") {
                         // exclude series & filter, added below
                         if (tuple[0].tableName == "filter") {
@@ -116,6 +95,106 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
                     where_links[tuple[0].tableName + "_id"] = tuple[1].id
                 }
             });
+            return [where_aggr, where_links];
+        });
+    }
+    let player_points = calculate_point(["series", "filter", "hero", "game_mode"]),
+        global_points = calculate_point(["series", "filter", "hero", "game_mode"]);  // TODO
+
+    let queue = [],
+        timer = undefined;
+
+    await seq.sync();
+
+    await ch.prefetch(BATCHSIZE);
+
+    ch.consume("crunch", (msg) => {
+        queue.push(msg);
+
+        // fill queue until batchsize or idle
+        if (timer != undefined) clearTimeout(timer);
+        timer = setTimeout(process, IDLE_TIMEOUT);
+        if (queue.length == BATCHSIZE)
+            process();
+    }, { noAck: false });
+
+    async function process() {
+        console.log("processing batch", queue.length);
+
+        // clean up to allow processor to accept while we wait for db
+        clearTimeout(timer);
+        timer = undefined;
+        let msgs = queue;
+        queue = [];
+
+        let player_records = [],
+            global_records = [];
+
+        await Promise.all(msgs.map(async (msg) => {
+            if (msg.properties.type == "global") {
+                // TODO
+                let stats = await calculate_global_point();
+                if (stats != undefined) global_records.push(stats);
+            }
+            if (msg.properties.type == "player") {
+                let stats = await calculate_player_point(
+                    msg.content.toString());
+                if (stats != undefined) player_records.push(stats);
+            }
+        }));
+
+        try {
+            await seq.transaction({ autocommit: false }, async (transaction) => {
+                console.log("inserting batch into db");
+                await Promise.all([
+                    model.PlayerPoint.bulkCreate(player_records, {
+                        updateOnDuplicate: [],  // all
+                        transaction: transaction
+                    }),
+                    model.GlobalPoint.bulkCreate(global_records, {
+                        updateOnDuplicate: [],  // all
+                        transaction: transaction
+                    })
+                ]);
+            });
+            console.log("acking batch");
+            await Promise.all(msgs.map((m) => ch.ack(m)) );
+        } catch (err) {
+            // TODO
+            console.error(err);
+            await Promise.all(msgs.map((m) => ch.nack(m, true)) );  // requeue
+        }
+    }
+
+    async function calculate_global_point() {
+        console.log("crunching global stats, this could take a while");
+
+        await Promise.all(global_points.map(async (tuple) => {
+            let where_aggr = tuple[0],
+                where_links = tuple[1];
+            // aggregate participant_stats with our condition
+            let stats = await aggregate_stats(where_aggr);
+            if (stats != undefined) {
+                console.log("inserting global stats");
+                Object.assign(stats, where_links);
+                return stats;
+            }
+            return undefined;
+        }));
+    }
+
+    async function calculate_player_point(player_api_id) {
+        let player = await model.Player.findOne(
+            { where: { api_id: player_api_id } });
+        if (player == null) console.error("player does not exist in db!?");
+        if (player.get("last_update") == null)
+            // not enough data
+            return;
+        console.log("crunching player", player.name);
+
+        await Promise.all(player_points.map(async (tuple) => {
+            let where_aggr = tuple[0],
+                where_links = tuple[1];
             // make it player specific
             where_aggr["$participant.player_api_id$"] = player_api_id;
             where_links["player_id"] = player.id;
@@ -124,9 +203,7 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
             if (stats != undefined) {
                 console.log("inserting stats for player", player.name);
                 Object.assign(stats, where_links);
-                await model.PlayerPoint.upsert(stats, {
-                    where: where_links
-                });
+                await model.PlayerPoint.upsert(stats);
             }
         }));
     }
