@@ -79,16 +79,17 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
                         // exclude series & filter, added below
                         if (tuple[0].tableName == "filter") {
                             // merge custom filters
-                            if (tuple[1].get("filter_on") == "player")
+                            if (tuple[1].get("dimension_on") == "player")
                                 Object.assign(where_aggr,
                                     tuple[1].get("filter"));
                         } else if (tuple[0].tableName == "series") {
-                            // series is special,
-                            // use start < date < end comparison
-                            where_aggr.created_at = { $between: [
-                                tuple[1].get("start"),
-                                tuple[1].get("end")
-                            ] }
+                            if (tuple[1].get("dimension_on") == "player")
+                                // series is special,
+                                // use start < date < end comparison
+                                where_aggr.created_at = { $between: [
+                                    tuple[1].get("start"),
+                                    tuple[1].get("end")
+                                ] }
                         } else where_aggr["$participant." + tuple[0].tableName + ".id$"] =
                             tuple[1].id
                     }
@@ -186,7 +187,10 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
     async function calculate_player_point(player_api_id) {
         let player = await model.Player.findOne(
             { where: { api_id: player_api_id } });
-        if (player == null) console.error("player does not exist in db!?");
+        if (player == null) {
+            console.error("player does not exist in db!?");
+            return;
+        }
         if (player.get("last_update") == null)
             // not enough data
             return;
