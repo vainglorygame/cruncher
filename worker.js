@@ -251,20 +251,54 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
             } ]
         } ];
 
-        // TODO cache this?
-        let total_participants = await model.ParticipantStats.count({
+        let played = await model.ParticipantStats.count({
             where: where,
             include: associations
         });
-        if (total_participants == 0) return undefined;  // not enough data
+        if (played == 0) return undefined;  // not enough data
+
+        // short to sum a participant row as player stat with the same name
+        let sum = (name) => [ seq.fn("sum", seq.col("participant_stats." + name)), name ];
 
         let data = await model.ParticipantStats.findOne({
             where: where,
             attributes: [
-                [ seq.literal(`${q(seq.fn("count", seq.col("participant.id") ))} / ${total_participants}`), "pick_rate" ],
-                [ seq.fn("avg", seq.cast(seq.col("participant.winner"), "int") ), "win_rate" ],
-                [ seq.fn("sum", seq.literal(`${q("participant_stats.gold")} / ${q("participant.roster.match.duration")}`)), "gold_per_min" ],
-                [ seq.fn("avg", seq.literal(`60.0 * ${q("participant_stats.minion_kills")} / ${q("participant.roster.match.duration")}`)), "cs_per_min" ]
+                [ seq.fn("count", seq.col("participant.id")), "played" ],
+                [ seq.fn("sum", seq.col("participant.roster.match.duration")), "time_spent" ],
+                [ seq.fn("sum", seq.cast(seq.col("participant.winner"), "int") ), "wins" ],
+                sum("kills"),
+                sum("deaths"),
+                sum("assists"),
+                sum("minion_kills"),
+                sum("jungle_kills"),
+                sum("non_jungle_minion_kills"),
+                sum("crystal_mine_captures"),
+                sum("turret_captures"),
+                sum("kda_ratio"),
+                sum("kill_participation"),
+                sum("cs_per_min"),
+                sum("kills_per_min"),
+                sum("impact_score"),
+                sum("objective_score"),
+                sum("damage_cp_score"),
+                sum("damage_wp_score"),
+                sum("sustain_score"),
+                sum("farm_lane_score"),
+                sum("kill_score"),
+                sum("objective_lane_score"),
+                sum("farm_jungle_score"),
+                sum("peal_score"),
+                sum("kill_assist_score"),
+                sum("objective_jungle_score"),
+                sum("vision_score"),
+                sum("heal_score"),
+                sum("assist_score"),
+                sum("utility_score"),
+                sum("synergy_score"),
+                sum("build_score"),
+                sum("offmeta_score"),
+                sum("kraken_captures"),
+                sum("gold")
             ],
             include: associations
         });
