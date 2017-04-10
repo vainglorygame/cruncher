@@ -129,18 +129,23 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
         queue = [];
 
         let player_records = [],
-            global_records = [];
+            global_records = [],
+            players_done   = [],
+            global_done    = false;
 
         await Promise.all(msgs.map(async (msg) => {
-            if (msg.properties.type == "global") {
+            if (msg.properties.type == "global" && global_done == false) {
                 // TODO
                 let stats = await calculate_global_point();
                 if (stats != undefined) global_records.push(stats);
             }
             if (msg.properties.type == "player") {
-                let stats = await calculate_player_point(
-                    msg.content.toString());
-                if (stats != undefined) player_records.push(stats);
+                let player_id = msg.content.toString();
+                if (players_done.indexOf(player_id) == -1) {
+                    players_done.push(player_id);
+                    let stats = await calculate_player_point(player_id);
+                    if (stats != undefined) player_records.push(stats);
+                }
             }
         }));
 
