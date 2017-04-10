@@ -165,6 +165,11 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
             console.error(err);
             await Promise.all(msgs.map((m) => ch.nack(m, true)) );  // requeue
         }
+
+        await Promise.all(player_records.map(async (p) =>
+            await ch.publish("amq.topic", "player." + p.name, new Buffer("points_update")) ));
+        if (global_records.length > 0)
+            await ch.publish("amq.topic", "global", new Buffer("points_update"));
     }
 
     async function calculate_global_point() {
@@ -207,6 +212,7 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
             if (stats != undefined) {
                 stats.created_at = seq.fn("NOW");
                 stats.updated_at = seq.fn("NOW");
+                stats.name = player.name;
                 console.log("inserting stats for player", player.name);
                 Object.assign(stats, where_links);
                 await model.PlayerPoint.upsert(stats);
