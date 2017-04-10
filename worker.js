@@ -201,7 +201,7 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
                 where_links = tuple[1];
             // make it player specific
             where_aggr["$participant.player_api_id$"] = player_api_id;
-            where_links["player_id"] = player.id;
+            where_links["player_api_id"] = player.api_id;
             // aggregate participant_stats with our condition
             let stats = await aggregate_stats(where_aggr);
             if (stats != undefined) {
