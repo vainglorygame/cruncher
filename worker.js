@@ -205,6 +205,8 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
             // aggregate participant_stats with our condition
             let stats = await aggregate_stats(where_aggr);
             if (stats != undefined) {
+                stats.created_at = seq.fn("NOW");
+                stats.updated_at = seq.fn("NOW");
                 console.log("inserting stats for player", player.name);
                 Object.assign(stats, where_links);
                 await model.PlayerPoint.upsert(stats);
