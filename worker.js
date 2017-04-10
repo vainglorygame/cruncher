@@ -46,7 +46,7 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
     // [[ ["hero", "Vox"], ["hero", "Taka"], …], [ ["game_mode", "ranked"], … ], …]
     // (will not use "Vox" but the index instead)
     await Promise.all(
-        [model.Series, model.Filter, model.Hero,
+        [model.Series, model.Filter, model.Hero, model.Role,
             model.GameMode].map(async (d, idx) =>
             dimension_cache[idx] =
                 (await d.findAll()).map((o) => [d, o]))
@@ -99,8 +99,8 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
             return [where_aggr, where_links];
         });
     }
-    let player_points = calculate_point(["series", "filter", "hero", "game_mode"]),
-        global_points = calculate_point(["series", "filter", "hero", "game_mode"]);  // TODO
+    let player_points = calculate_point(["series", "filter", "hero", "role", "game_mode"]),
+        global_points = calculate_point(["series", "filter", "hero", "role", "game_mode"]);  // TODO
 
     let queue = [],
         timer = undefined;
