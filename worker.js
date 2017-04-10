@@ -9,8 +9,8 @@ var amqp = require("amqplib"),
 
 var RABBITMQ_URI = process.env.RABBITMQ_URI,
     DATABASE_URI = process.env.DATABASE_URI,
-    BATCHSIZE = parseInt(process.env.BATCHSIZE) || 200,  // players + globals
-    IDLE_TIMEOUT = parseFloat(process.env.IDLE_TIMEOUT) || 1000;  // ms
+    BATCHSIZE = parseInt(process.env.BATCHSIZE) || 5,  // players + globals
+    IDLE_TIMEOUT = parseFloat(process.env.IDLE_TIMEOUT) || 10000;  // ms
 
 (async () => {
     let seq, model, rabbit, ch;
