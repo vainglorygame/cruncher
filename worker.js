@@ -41,16 +41,65 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
         }, [[]]);
     }
 
-    let dimension_cache = [];
     // create a 3D array
     // [[ ["hero", "Vox"], ["hero", "Taka"], …], [ ["game_mode", "ranked"], … ], …]
     // (will not use "Vox" but the index instead)
-    await Promise.all(
+    async function dimensions_for(dimensions) {
+        let cache = [];
+        await Promise.all(dimensions.map(async (d, idx) =>
+            cache[idx] = (await d.findAll()).map((o) => [d, o]))
+        );
+        return cache;
+    }
+    let player_dimensions = await dimensions_for(
         [model.Series, model.Filter, model.Hero, model.Role,
-            model.GameMode].map(async (d, idx) =>
-            dimension_cache[idx] =
-                (await d.findAll()).map((o) => [d, o]))
-    );
+            model.GameMode]),
+        global_dimensions = await dimensions_for(
+        [model.Series, model.Filter, model.Hero, model.Role,
+            model.GameMode, model.Skilltier, model.Build]);
+
+    // return every possible [query, insert] combination
+    function calculate_point(points) {
+        return points.map((point) => {
+            // Series and Filter are special
+            let where_aggr = {},
+                where_links = {};
+            // create skeleton: where hero_id=$hero
+            // for aggregation, use series as range
+            // for links, use the id
+            point.forEach((tuple) => {
+                // [table name, table element]
+                if (tuple[1].get("name") != "all") {
+                    // exclude series & filter, added below
+                    if (tuple[0].tableName == "filter") {
+                        // merge custom filters
+                        if (tuple[1].get("dimension_on") == "player")
+                            Object.assign(where_aggr,
+                                tuple[1].get("filter"));
+                    // series and skill_tier are ranged filters
+                    } else if (tuple[0].tableName == "series") {
+                        if (tuple[1].get("dimension_on") == "player")
+                            // use start < date < end comparison
+                            where_aggr.created_at = { $between: [
+                                tuple[1].get("start"),
+                                tuple[1].get("end")
+                            ] }
+                    } else if (tuple[0].tableName == "skill_tier") {
+                        where_aggr["$participant.skill_tier$"] = { $between: [
+                            tuple[1].get("start"),
+                            tuple[1].get("end")
+                        ] }
+                    // build is a special ranged filter
+                    } else if (tuple[0].tableName == "build") {
+                        // TODO!
+                    } else where_aggr["$participant." + tuple[0].tableName + ".id$"] =
+                        tuple[1].id
+                }
+                where_links[tuple[0].tableName + "_id"] = tuple[1].id
+            });
+            return [where_aggr, where_links];
+        });
+    }
 
     // create an array with every possible combination
     // hero x game mode x …
@@ -61,46 +110,8 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
     // SAW  x ranked    x …
     // …
     // Vox  x ANY       x …
-    let points = cartesian(dimension_cache);
-
-    // return every possible [query, insert] combination
-    function calculate_point(dimensions) {
-        return points.map((point) => {
-            // Series and Filter are special
-            let where_aggr = {},
-                where_links = {};
-            // create skeleton: where hero_id=$hero
-            // for aggregation, use series as range
-            // for links, use the id
-            point.forEach((tuple) => {
-                // [table name, table element]
-                if (dimensions.indexOf(tuple[0].tableName) > -1) {
-                    if (tuple[1].get("name") != "all") {
-                        // exclude series & filter, added below
-                        if (tuple[0].tableName == "filter") {
-                            // merge custom filters
-                            if (tuple[1].get("dimension_on") == "player")
-                                Object.assign(where_aggr,
-                                    tuple[1].get("filter"));
-                        } else if (tuple[0].tableName == "series") {
-                            if (tuple[1].get("dimension_on") == "player")
-                                // series is special,
-                                // use start < date < end comparison
-                                where_aggr.created_at = { $between: [
-                                    tuple[1].get("start"),
-                                    tuple[1].get("end")
-                                ] }
-                        } else where_aggr["$participant." + tuple[0].tableName + ".id$"] =
-                            tuple[1].id
-                    }
-                    where_links[tuple[0].tableName + "_id"] = tuple[1].id
-                }
-            });
-            return [where_aggr, where_links];
-        });
-    }
-    let player_points = calculate_point(["series", "filter", "hero", "role", "game_mode"]),
-        global_points = calculate_point(["series", "filter", "hero", "role", "game_mode"]);  // TODO
+    let player_points = calculate_point(cartesian(player_dimensions)),
+        global_points = calculate_point(cartesian(global_dimensions));
 
     let queue = [],
         timer = undefined;
@@ -186,11 +197,11 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
             // aggregate participant_stats with our condition
             let stats = await aggregate_stats(where_aggr);
             if (stats != undefined) {
+                stats.updated_at = seq.fn("NOW");
                 console.log("inserting global stats");
                 Object.assign(stats, where_links);
-                return stats;
-            }
-            return undefined;
+                await model.GlobalPoint.upsert(stats);
+            } else console.error("no global stats calculated!");
         }));
     }
 
@@ -215,7 +226,6 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
             // aggregate participant_stats with our condition
             let stats = await aggregate_stats(where_aggr);
             if (stats != undefined) {
-                stats.created_at = seq.fn("NOW");
                 stats.updated_at = seq.fn("NOW");
                 stats.name = player.name;
                 console.log("inserting stats for player", player.name);
