@@ -116,8 +116,6 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
     let queue = [],
         timer = undefined;
 
-    await seq.sync();
-
     await ch.prefetch(BATCHSIZE);
 
     ch.consume("crunch", (msg) => {
@@ -146,16 +144,17 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
 
         await Promise.all(msgs.map(async (msg) => {
             if (msg.properties.type == "global" && global_done == false) {
-                // TODO
-                let stats = await calculate_global_point();
-                if (stats != undefined) global_records.push(stats);
+                let records = await calculate_global_point();
+                if (records != undefined)
+                    global_records = global_records.concat(records);
             }
             if (msg.properties.type == "player") {
                 let player_id = msg.content.toString();
                 if (players_done.indexOf(player_id) == -1) {
                     players_done.push(player_id);
-                    let stats = await calculate_player_point(player_id);
-                    if (stats != undefined) player_records.push(stats);
+                    let records = await calculate_player_point(player_id);
+                    if (records != undefined)
+                        player_records = player_records.concat(records);
                 }
             }
         }));
@@ -189,6 +188,7 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
     }
 
     async function calculate_global_point() {
+        let global_records = [];
         console.log("crunching global stats, this could take a while");
 
         await Promise.all(global_points.map(async (tuple) => {
@@ -200,14 +200,16 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
                 stats.updated_at = seq.fn("NOW");
                 console.log("inserting global stats");
                 Object.assign(stats, where_links);
-                await model.GlobalPoint.upsert(stats);
+                global_records.push(stats);
             } else console.error("no global stats calculated!");
         }));
+        return global_records;
     }
 
     async function calculate_player_point(player_api_id) {
         let player = await model.Player.findOne(
-            { where: { api_id: player_api_id } });
+            { where: { api_id: player_api_id } }),
+            point_records = [];
         if (player == null) {
             console.error("player does not exist in db!?");
             return;
@@ -230,9 +232,10 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
                 stats.name = player.name;
                 console.log("inserting stats for player", player.name);
                 Object.assign(stats, where_links);
-                await model.PlayerPoint.upsert(stats);
+                point_records.push(stats);
             }
         }));
+        return point_records;
     }
 
     // return aggregated stats based on $where as WHERE clauses
