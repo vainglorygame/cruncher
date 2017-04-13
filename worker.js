@@ -17,7 +17,7 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
     while (true) {
         try {
             seq = new Seq(DATABASE_URI, { logging: false }),
-            rabbit = await amqp.connect(RABBITMQ_URI, { heartbeat: 30 }),
+            rabbit = await amqp.connect(RABBITMQ_URI, { heartbeat: 320 }),
             ch = await rabbit.createChannel();
             await ch.assertQueue("crunch", {durable: true});
             break;
