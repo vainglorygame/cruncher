@@ -18,7 +18,7 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
     while (true) {
         try {
             seq = new Seq(DATABASE_URI, { logging: false }),
-            rabbit = await amqp.connect(RABBITMQ_URI),
+            rabbit = await amqp.connect(RABBITMQ_URI, { heartbeat: 30 }),
             ch = await rabbit.createChannel();
             await ch.assertQueue("crunch", {durable: true});
             break;
@@ -160,9 +160,9 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
         }));
 
         try {
-            await seq.transaction({ autocommit: false }, async (transaction) => {
-                console.log("inserting batch into db");
-                await Promise.all([
+            console.log("inserting batch into db");
+            await seq.transaction({ autocommit: false }, (transaction) => {
+                return Promise.all([
                     model.PlayerPoint.bulkCreate(player_records, {
                         updateOnDuplicate: [],  // all
                         transaction: transaction
