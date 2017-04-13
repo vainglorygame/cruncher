@@ -181,7 +181,7 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
             await Promise.all(msgs.map((m) => ch.nack(m, true)) );  // requeue
         }
 
-        await Promise.all(player_records.map(async (p) =>
+        await Promise.all(players_done.map(async (p) =>
             await ch.publish("amq.topic", "player." + p.name, new Buffer("points_update")) ));
         if (global_records.length > 0)
             await ch.publish("amq.topic", "global", new Buffer("points_update"));
