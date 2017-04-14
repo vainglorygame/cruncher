@@ -58,7 +58,7 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
             model.GameMode, model.Skilltier, model.Build]);
 
     // return every possible [query, insert] combination
-    function calculate_point(points) {
+    function calculate_point(points, instance) {
         return points.map((point) => {
             // Series and Filter are special
             let where_aggr = {},
@@ -72,12 +72,12 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
                     // exclude series & filter, added below
                     if (tuple[0].tableName == "filter") {
                         // merge custom filters
-                        if (tuple[1].get("dimension_on") == "player")
+                        if (tuple[1].get("dimension_on") == instance)
                             Object.assign(where_aggr,
                                 tuple[1].get("filter"));
                     // series and skill_tier are ranged filters
                     } else if (tuple[0].tableName == "series") {
-                        if (tuple[1].get("dimension_on") == "player")
+                        if (tuple[1].get("dimension_on") == instance)
                             // use start < date < end comparison
                             where_aggr.created_at = { $between: [
                                 tuple[1].get("start"),
@@ -109,8 +109,10 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
     // SAW  x ranked    x …
     // …
     // Vox  x ANY       x …
-    let player_points = calculate_point(cartesian(player_dimensions)),
-        global_points = calculate_point(cartesian(global_dimensions));
+    let player_points = calculate_point(cartesian(player_dimensions),
+            "player"),
+        global_points = calculate_point(cartesian(global_dimensions),
+            "global");
 
     await ch.prefetch(PARALLELS);
 
