@@ -114,7 +114,7 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
         global_points = calculate_point(cartesian(global_dimensions),
             "global");
 
-    await ch.prefetch(PARALLELS);
+    await ch.prefetch(CRUNCHERS);
 
     ch.consume("crunch", async (msg) => {
         let player_records = [],
