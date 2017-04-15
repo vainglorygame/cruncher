@@ -154,7 +154,7 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
         } catch (err) {
             // TODO
             console.error(err);
-            await ch.nack(msg, true);  // requeue
+            await ch.nack(msg, false, true);  // requeue
         }
 
         if (player_records.length > 0) {
