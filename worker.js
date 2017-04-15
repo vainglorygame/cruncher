@@ -9,7 +9,7 @@ var amqp = require("amqplib"),
 
 var RABBITMQ_URI = process.env.RABBITMQ_URI,
     DATABASE_URI = process.env.DATABASE_URI,
-    PARALLELS = process.env.PARALLELS || 5;  // how many players to crunch concurrently
+    CRUNCHERS = process.env.CRUNCHERS || 4;  // how many players to crunch concurrently
 
 (async () => {
     let seq, model, rabbit, ch;
