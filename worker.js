@@ -124,7 +124,7 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
         console.log("got work to do, let's go",
             msg.properties.type, player_id);
 
-        if (msg.properties.type == "global" && global_done == false) {
+        if (msg.properties.type == "global") {
             let records = await calculate_global_point();
             if (records != undefined)
                 global_records = global_records.concat(records);
