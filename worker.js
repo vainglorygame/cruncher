@@ -68,21 +68,21 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
             // for links, use the id
             point.forEach((tuple) => {
                 // [table name, table element]
+                if (tuple[1].get("dimension_on") != null &&
+                    tuple[1].get("dimension_on") != instance) return;
                 if (tuple[1].get("name") != "all") {
                     // exclude series & filter, added below
                     if (tuple[0].tableName == "filter") {
                         // merge custom filters
-                        if (tuple[1].get("dimension_on") == instance)
-                            Object.assign(where_aggr,
-                                tuple[1].get("filter"));
+                        Object.assign(where_aggr,
+                            tuple[1].get("filter"));
                     // series and skill_tier are ranged filters
                     } else if (tuple[0].tableName == "series") {
-                        if (tuple[1].get("dimension_on") == instance)
-                            // use start < date < end comparison
-                            where_aggr.created_at = { $between: [
-                                tuple[1].get("start"),
-                                tuple[1].get("end")
-                            ] }
+                        // use start < date < end comparison
+                        where_aggr.created_at = { $between: [
+                            tuple[1].get("start"),
+                            tuple[1].get("end")
+                        ] }
                     } else if (tuple[0].tableName == "skill_tier") {
                         where_aggr["$participant.skill_tier$"] = { $between: [
                             tuple[1].get("start"),
