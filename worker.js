@@ -146,8 +146,8 @@ const logger = new (winston.Logger)({
             if (records != undefined)
                 player_records = player_records.concat(records);
         }
-        calculation_profiler.done("calculations for %s %s",
-            msg.properties.type, player_id);
+        calculation_profiler.done("calculations for " +
+            msg.properties.type + " " + player_id);
 
         let transaction_profiler = logger.startTimer();
         try {
