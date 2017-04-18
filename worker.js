@@ -2,12 +2,12 @@
 /* jshint esnext:true */
 "use strict";
 
-var amqp = require("amqplib"),
+const amqp = require("amqplib"),
     Seq = require("sequelize"),
     sleep = require("sleep-promise"),
     hash = require("object-hash");
 
-var RABBITMQ_URI = process.env.RABBITMQ_URI,
+const RABBITMQ_URI = process.env.RABBITMQ_URI,
     DATABASE_URI = process.env.DATABASE_URI,
     CRUNCHERS = process.env.CRUNCHERS || 4;  // how many players to crunch concurrently
 
@@ -50,7 +50,7 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
         );
         return cache;
     }
-    let player_dimensions = await dimensions_for(
+    const player_dimensions = await dimensions_for(
         [model.Series, model.Filter, model.Hero, model.Role,
             model.GameMode]),
         global_dimensions = await dimensions_for(
@@ -109,7 +109,7 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
     // SAW  x ranked    x …
     // …
     // Vox  x ANY       x …
-    let player_points = calculate_point(cartesian(player_dimensions),
+    const player_points = calculate_point(cartesian(player_dimensions),
             "player"),
         global_points = calculate_point(cartesian(global_dimensions),
             "global");
@@ -125,12 +125,12 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
             msg.properties.type, player_id);
 
         if (msg.properties.type == "global") {
-            let records = await calculate_global_point();
+            const records = await calculate_global_point();
             if (records != undefined)
                 global_records = global_records.concat(records);
         }
         if (msg.properties.type == "player") {
-            let records = await calculate_player_point(player_id);
+            const records = await calculate_player_point(player_id);
             if (records != undefined)
                 player_records = player_records.concat(records);
         }
@@ -158,7 +158,7 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
         }
 
         if (player_records.length > 0) {
-            let player = await model.Player.findOne({
+            const player = await model.Player.findOne({
                 where: { api_id: player_id },
                 attributes: ["name"]
             });
@@ -177,7 +177,7 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
         console.log("crunching global stats, this could take a while");
 
         await Promise.all(global_points.map(async (tuple) => {
-            let where_aggr = tuple[0],
+            const where_aggr = tuple[0],
                 where_links = tuple[1];
             // aggregate participant_stats with our condition
             let stats = await aggregate_stats(where_aggr);
@@ -196,10 +196,11 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
         console.log("crunching player", player_api_id);
 
         await Promise.all(player_points.map(async (tuple) => {
-            let where_aggr = tuple[0],
+            const where_aggr = tuple[0],
                 where_links = tuple[1];
             // make it player specific
             where_aggr["$participant.player_api_id$"] = player_api_id;
+            where_aggr["final"] = true;  // only end of match stats
             where_links["player_api_id"] = player_api_id;
             // aggregate participant_stats with our condition
             let stats = await aggregate_stats(where_aggr);
@@ -215,13 +216,13 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
     // return aggregated stats based on $where as WHERE clauses
     async function aggregate_stats(where) {
         // in literals: q -> column name, e -> function or string
-        let q = (qry) => seq.dialect.QueryGenerator.quote(qry),
+        const q = (qry) => seq.dialect.QueryGenerator.quote(qry),
             e = (qry) => seq.dialect.QueryGenerator.escape(qry);
 
         // alternative for win rate
         //[ seq.literal(`${e(seq.fn("sum", seq.cast(seq.col("participant.winner"), "int") ))} / ${e(seq.fn("count", seq.col("participant.id")))}`), "win_rate" ]
 
-        let associations = [ {
+        const associations = [ {
             model: model.Participant,
             as: "participant",
             attributes: [],
@@ -251,16 +252,16 @@ var RABBITMQ_URI = process.env.RABBITMQ_URI,
             } ]
         } ];
 
-        let played = await model.ParticipantStats.count({
+        const played = await model.ParticipantStats.count({
             where: where,
             include: associations
         });
         if (played == 0) return undefined;  // not enough data
 
         // short to sum a participant row as player stat with the same name
-        let sum = (name) => [ seq.fn("sum", seq.col("participant_stats." + name)), name ];
+        const sum = (name) => [ seq.fn("sum", seq.col("participant_stats." + name)), name ];
 
-        let data = await model.ParticipantStats.findOne({
+        const data = await model.ParticipantStats.findOne({
             where: where,
             attributes: [
                 [ seq.fn("count", seq.col("participant.id")), "played" ],
