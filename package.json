@@ -8,7 +8,8 @@
     "mysql": "^2.13.0",
     "object-hash": "^1.1.7",
     "sequelize": "^3.30.4",
-    "sleep-promise": "^2.0.0"
+    "sleep-promise": "^2.0.0",
+    "winston": "^2.3.1"
   },
   "devDependencies": {},
   "scripts": {

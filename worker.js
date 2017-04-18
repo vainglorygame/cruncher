@@ -3,6 +3,7 @@
 "use strict";
 
 const amqp = require("amqplib"),
+    winston = require("winston"),
     Seq = require("sequelize"),
     sleep = require("sleep-promise"),
     hash = require("object-hash");
@@ -10,6 +11,16 @@ const amqp = require("amqplib"),
 const RABBITMQ_URI = process.env.RABBITMQ_URI,
     DATABASE_URI = process.env.DATABASE_URI,
     CRUNCHERS = process.env.CRUNCHERS || 4;  // how many players to crunch concurrently
+
+const logger = new (winston.Logger)({
+        transports: [
+            new (winston.transports.Console)({
+                timestamp: () => Date.now(),
+                formatter: (options) => winston.config.colorize(options.level,
+`${new Date(options.timestamp()).toISOString()} ${options.level.toUpperCase()} ${(options.message? options.message:"")} ${(options.meta && Object.keys(options.meta).length? JSON.stringify(options.meta):"")}`)
+            })
+        ]
+    });
 
 (async () => {
     let seq, model, rabbit, ch;
@@ -22,7 +33,7 @@ const RABBITMQ_URI = process.env.RABBITMQ_URI,
             await ch.assertQueue("crunch", {durable: true});
             break;
         } catch (err) {
-            console.error(err);
+            logger.error("Error connecting", err);
             await sleep(5000);
         }
     }
@@ -121,9 +132,10 @@ const RABBITMQ_URI = process.env.RABBITMQ_URI,
             global_records = [],
             player_id = msg.content.toString();
 
-        console.log("got work to do, let's go",
+        logger.info("working for %s on %s",
             msg.properties.type, player_id);
 
+        let calulation_profiler = logger.startTimer();
         if (msg.properties.type == "global") {
             const records = await calculate_global_point();
             if (records != undefined)
@@ -134,9 +146,12 @@ const RABBITMQ_URI = process.env.RABBITMQ_URI,
             if (records != undefined)
                 player_records = player_records.concat(records);
         }
+        calculation_profiler.done("calculations for %s %s",
+            msg.properties.type, player_id);
 
+        let transaction_profiler = logger.startTimer();
         try {
-            console.log("inserting lots of stuff into db");
+            logger.info("inserting into db");
             await seq.transaction({ autocommit: false }, (transaction) => {
                 return Promise.all([
                     model.PlayerPoint.bulkCreate(player_records, {
@@ -149,13 +164,15 @@ const RABBITMQ_URI = process.env.RABBITMQ_URI,
                     })
                 ]);
             });
-            console.log("acking");
+            logger.info("acking");
             await ch.ack(msg);
         } catch (err) {
             // TODO
-            console.error(err);
+            logger.error("SQL error: %s, %j, %s",
+                err.name, err.errors, err.parent.sql);
             await ch.nack(msg, false, true);  // requeue
         }
+        transaction_profiler.done("database transaction");
 
         if (player_records.length > 0) {
             const player = await model.Player.findOne({
@@ -163,7 +180,7 @@ const RABBITMQ_URI = process.env.RABBITMQ_URI,
                 attributes: ["name"]
             });
             if (player != null) {
-                console.log("finished updating player", player.get("name"));
+                logger.info("updated player '%s'", player.get("name"));
                 await ch.publish("amq.topic", "player." + player.get("name"),
                     new Buffer("points_update"));
             }
@@ -174,7 +191,7 @@ const RABBITMQ_URI = process.env.RABBITMQ_URI,
 
     async function calculate_global_point() {
         let global_records = [];
-        console.log("crunching global stats, this could take a while");
+        logger.info("crunching global stats, this could take a while");
 
         await Promise.all(global_points.map(async (tuple) => {
             const where_aggr = tuple[0],
@@ -183,17 +200,17 @@ const RABBITMQ_URI = process.env.RABBITMQ_URI,
             let stats = await aggregate_stats(where_aggr);
             if (stats != undefined) {
                 stats.updated_at = seq.fn("NOW");
-                console.log("inserting global stats");
+                logger.info("inserting global stats");
                 Object.assign(stats, where_links);
                 global_records.push(stats);
-            } else console.error("no global stats calculated!");
+            } else logger.warn("not enough data for this global stat!");
         }));
         return global_records;
     }
 
     async function calculate_player_point(player_api_id) {
         let point_records = [];
-        console.log("crunching player", player_api_id);
+        logger.info("crunching player %s", player_api_id);
 
         await Promise.all(player_points.map(async (tuple) => {
             const where_aggr = tuple[0],
