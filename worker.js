@@ -135,7 +135,7 @@ const logger = new (winston.Logger)({
         logger.info("working for %s on %s",
             msg.properties.type, player_id);
 
-        let calulation_profiler = logger.startTimer();
+        let calculation_profiler = logger.startTimer();
         if (msg.properties.type == "global") {
             const records = await calculate_global_point();
             if (records != undefined)
