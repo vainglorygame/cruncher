@@ -5,12 +5,14 @@
 const amqp = require("amqplib"),
     Promise = require("bluebird"),
     winston = require("winston"),
+    loggly = require("winston-loggly-bulk"),
     Seq = require("sequelize"),
     sleep = require("sleep-promise"),
     hash = require("object-hash");
 
 const RABBITMQ_URI = process.env.RABBITMQ_URI,
     DATABASE_URI = process.env.DATABASE_URI,
+    LOGGLY_TOKEN = process.env.LOGGLY_TOKEN,
     // number of inserts in one statement
     CHUNKSIZE = parseInt(process.env.CHUNKSIZE) || 100,
     CRUNCHERS = process.env.CRUNCHERS || 4;  // how many players to crunch concurrently
@@ -18,11 +20,19 @@ const RABBITMQ_URI = process.env.RABBITMQ_URI,
 const logger = new (winston.Logger)({
         transports: [
             new (winston.transports.Console)({
-                timestamp: () => Date.now(),
-                formatter: (options) => winston.config.colorize(options.level,
-`${new Date(options.timestamp()).toISOString()} ${options.level.toUpperCase()} ${(options.message? options.message:"")} ${(options.meta && Object.keys(options.meta).length? JSON.stringify(options.meta):"")}`)
+                timestamp: true,
+                colorize: true
             })
         ]
+    });
+
+// loggly integration
+if (LOGGLY_TOKEN)
+    logger.add(winston.transports.Loggly, {
+        inputToken: LOGGLY_TOKEN,
+        subdomain: "kvahuja",
+        tags: ["backend", "cruncher"],
+        json: true
     });
 
 // helpers
@@ -142,8 +152,8 @@ function* chunks(arr) {
             global_records = [],
             player_id = msg.content.toString();
 
-        logger.info("working for %s on %s",
-            msg.properties.type, player_id);
+        logger.info("working",
+            { type: msg.properties.type, id: player_id });
 
         let calculation_profiler = logger.startTimer();
         if (msg.properties.type == "global") {
@@ -182,8 +192,7 @@ function* chunks(arr) {
             await ch.ack(msg);
         } catch (err) {
             // TODO
-            logger.error("SQL error: %s, %j, %s",
-                err.name, err.errors, err.parent);
+            logger.error("SQL error", err);
             await ch.nack(msg, false, true);  // requeue
         }
         transaction_profiler.done("database transaction");
@@ -194,7 +203,7 @@ function* chunks(arr) {
                 attributes: ["name"]
             });
             if (player != null) {
-                logger.info("updated player '%s'", player.get("name"));
+                logger.info("updated player", { name: player.get("name") });
                 await ch.publish("amq.topic", "player." + player.get("name"),
                     new Buffer("points_update"));
             }
@@ -224,7 +233,7 @@ function* chunks(arr) {
 
     async function calculate_player_point(player_api_id) {
         let point_records = [];
-        logger.info("crunching player %s", player_api_id);
+        logger.info("crunching player", { id: player_api_id });
 
         await Promise.all(player_points.map(async (tuple) => {
             const where_aggr = tuple[0],

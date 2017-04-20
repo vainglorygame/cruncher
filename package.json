@@ -10,7 +10,8 @@
     "object-hash": "^1.1.7",
     "sequelize": "^3.30.4",
     "sleep-promise": "^2.0.0",
-    "winston": "^2.3.1"
+    "winston": "^2.3.1",
+    "winston-loggly-bulk": "^1.4.2"
   },
   "devDependencies": {},
   "scripts": {
