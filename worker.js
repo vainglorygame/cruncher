@@ -14,7 +14,8 @@ const RABBITMQ_URI = process.env.RABBITMQ_URI,
     DATABASE_URI = process.env.DATABASE_URI,
     LOGGLY_TOKEN = process.env.LOGGLY_TOKEN,
     // number of inserts in one statement
-    CHUNKSIZE = parseInt(process.env.CHUNKSIZE) || 100,
+    CHUNKSIZE = parseInt(process.env.CHUNKSIZE) || 300,
+    MAXCONNS = parseInt(process.env.MAXCONNS) || 10,  // how many concurrent actions
     CRUNCHERS = process.env.CRUNCHERS || 4;  // how many players to crunch concurrently
 
 const logger = new (winston.Logger)({
@@ -47,7 +48,10 @@ function* chunks(arr) {
 
     while (true) {
         try {
-            seq = new Seq(DATABASE_URI, { logging: false }),
+            seq = new Seq(DATABASE_URI, {
+                logging: false,
+                max: MAXCONNS
+            }),
             rabbit = await amqp.connect(RABBITMQ_URI, { heartbeat: 320 }),
             ch = await rabbit.createChannel();
             await ch.assertQueue("crunch", {durable: true});
@@ -74,22 +78,26 @@ function* chunks(arr) {
     // create a 3D array
     // [[ ["hero", "Vox"], ["hero", "Taka"], …], [ ["game_mode", "ranked"], … ], …]
     // (will not use "Vox" but the index instead)
-    async function dimensions_for(dimensions) {
+    async function dimensions_for(dimensions, on) {
         let cache = [];
-        await Promise.all(dimensions.map(async (d, idx) =>
-            cache[idx] = (await d.findAll()).map((o) => [d, o]))
+        await Promise.map(dimensions, async (d, idx) =>
+            cache[idx] = (await d.findAll()).map(
+                (o) => [d, o]).filter((t) =>
+                    t[1].get("dimension_on") == null
+                        || t[1].get("dimension_on") == on)
         );
         return cache;
     }
     const player_dimensions = await dimensions_for(
         [model.Series, model.Filter, model.Hero, model.Role,
-            model.GameMode]),
+            model.GameMode], "player"),
         global_dimensions = await dimensions_for(
         [model.Series, model.Filter, model.Hero, model.Role,
-            model.GameMode, model.Skilltier, model.Build]);
+            model.GameMode, model.Skilltier, model.Build,
+            model.Region], "global");
 
     // return every possible [query, insert] combination
-    function calculate_point(points, instance) {
+    function calculate_point(points) {
         return points.map((point) => {
             // Series and Filter are special
             let where_aggr = {},
@@ -99,14 +107,15 @@ function* chunks(arr) {
             // for links, use the id
             point.forEach((tuple) => {
                 // [table name, table element]
-                if (tuple[1].get("dimension_on") != null &&
-                    tuple[1].get("dimension_on") != instance) return;
                 if (tuple[1].get("name") != "all") {
                     // exclude series & filter, added below
                     if (tuple[0].tableName == "filter") {
                         // merge custom filters
                         Object.assign(where_aggr,
                             tuple[1].get("filter"));
+                    // region is filter by name not by id
+                    } else if (tuple[0].tableName == "region") {
+                        where_aggr["$participant.shard_id$"] = tuple[1].get("name");
                     // series and skill_tier are ranged filters
                     } else if (tuple[0].tableName == "series") {
                         // use start < date < end comparison
@@ -125,7 +134,7 @@ function* chunks(arr) {
                     } else where_aggr["$participant." + tuple[0].tableName + ".id$"] =
                         tuple[1].id
                 }
-                where_links[tuple[0].tableName + "_id"] = tuple[1].id
+                where_links[tuple[0].tableName + "_id"] = tuple[1].get("id");
             });
             return [where_aggr, where_links];
         });
@@ -140,64 +149,41 @@ function* chunks(arr) {
     // SAW  x ranked    x …
     // …
     // Vox  x ANY       x …
-    const player_points = calculate_point(cartesian(player_dimensions),
-            "player"),
-        global_points = calculate_point(cartesian(global_dimensions),
-            "global");
+    const player_points = calculate_point(cartesian(player_dimensions)),
+        global_points = calculate_point(cartesian(global_dimensions));
 
     await ch.prefetch(CRUNCHERS);
 
     ch.consume("crunch", async (msg) => {
-        let player_records = [],
-            global_records = [],
-            player_id = msg.content.toString();
-
+        const player_id = msg.content.toString();
         logger.info("working",
             { type: msg.properties.type, id: player_id });
 
-        let calculation_profiler = logger.startTimer();
+        let profiler = logger.startTimer();
+        // service wide stats
         if (msg.properties.type == "global") {
-            const records = await calculate_global_point();
-            if (records != undefined)
-                global_records = global_records.concat(records);
+            try {
+                await calculate_global_point();
+                logger.info("acking");
+                await ch.ack(msg);
+                // tell web
+                await ch.publish("amq.topic", "global", new Buffer("points_update"));
+            } catch (err) {
+                logger.error("SQL error", err);
+                await ch.nack(msg, false, true);  // requeue
+            }
         }
+        // player stats
         if (msg.properties.type == "player") {
-            const records = await calculate_player_point(player_id);
-            if (records != undefined)
-                player_records = player_records.concat(records);
-        }
-        calculation_profiler.done("calculations for " +
-            msg.properties.type + " " + player_id);
-
-        let transaction_profiler = logger.startTimer();
-        try {
-            logger.info("inserting into db");
-            await seq.transaction({ autocommit: false }, (transaction) => {
-                return Promise.all([
-                    Promise.map(chunks(player_records), async (p_r) =>
-                        model.PlayerPoint.bulkCreate(p_r, {
-                            updateOnDuplicate: [],  // all
-                            transaction: transaction
-                        })
-                    ),
-                    Promise.map(chunks(global_records), async (g_r) =>
-                        model.GlobalPoint.bulkCreate(g_r, {
-                            updateOnDuplicate: [],
-                            transaction: transaction
-                        })
-                    )
-                ]);
-            });
-            logger.info("acking");
-            await ch.ack(msg);
-        } catch (err) {
-            // TODO
-            logger.error("SQL error", err);
-            await ch.nack(msg, false, true);  // requeue
-        }
-        transaction_profiler.done("database transaction");
-
-        if (player_records.length > 0) {
+            try {
+                await calculate_player_point(player_id);
+                logger.info("acking");
+                await ch.ack(msg);
+            } catch (err) {
+                logger.error("SQL error", err);
+                await ch.nack(msg, false, true);  // requeue
+            }
+            // tell web
             const player = await model.Player.findOne({
                 where: { api_id: player_id },
                 attributes: ["name"]
@@ -208,34 +194,34 @@ function* chunks(arr) {
                     new Buffer("points_update"));
             }
         }
-        if (global_records.length > 0)
-            await ch.publish("amq.topic", "global", new Buffer("points_update"));
+        profiler.done("calculations for " +
+            msg.properties.type + " " + player_id);
     }, { noAck: false });
 
     async function calculate_global_point() {
-        let global_records = [];
         logger.info("crunching global stats, this could take a while");
-
-        await Promise.all(global_points.map(async (tuple) => {
-            const where_aggr = tuple[0],
-                where_links = tuple[1];
-            // aggregate participant_stats with our condition
-            let stats = await aggregate_stats(where_aggr);
-            if (stats != undefined) {
-                stats.updated_at = seq.fn("NOW");
-                logger.info("inserting global stats");
-                Object.assign(stats, where_links);
-                global_records.push(stats);
-            } else logger.warn("not enough data for this global stat!");
-        }));
-        return global_records;
+        await seq.transaction({ autocommit: false }, async (transaction) => {
+            await Promise.map(global_points, async (tuple) => {
+                const where_aggr = tuple[0], where_links = tuple[1];
+                // aggregate participant_stats with our condition
+                let stats = await aggregate_stats(where_aggr);
+                if (stats != undefined) {
+                    stats.updated_at = seq.fn("NOW");
+                    //logger.info("inserting global stats");
+                    Object.assign(stats, where_links);
+                    await model.GlobalPoint.upsert(stats,
+                        { transaction: transaction });
+                } // else logger.warn("not enough data for this global stat!");
+            }, { concurrency: MAXCONNS });
+        });
+        logger.info("committing");
     }
 
     async function calculate_player_point(player_api_id) {
         let point_records = [];
         logger.info("crunching player", { id: player_api_id });
 
-        await Promise.all(player_points.map(async (tuple) => {
+        await Promise.map(player_points, async (tuple) => {
             const where_aggr = tuple[0],
                 where_links = tuple[1];
             // make it player specific
@@ -249,8 +235,17 @@ function* chunks(arr) {
                 Object.assign(stats, where_links);
                 point_records.push(stats);
             }
-        }));
-        return point_records;
+        }, { concurrency: MAXCONNS });
+
+        logger.info("inserting into db");
+        await seq.transaction({ autocommit: false }, async (transaction) => {
+            await Promise.map(chunks(point_records), async (p_r) =>
+                model.PlayerPoint.bulkCreate(p_r, {
+                    updateOnDuplicate: [],  // all
+                    transaction: transaction
+                }), { concurrency: MAXCONNS }
+            )
+        });
     }
 
     // return aggregated stats based on $where as WHERE clauses
