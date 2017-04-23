@@ -198,23 +198,20 @@ function* chunks(arr) {
 
     async function calculate_global_point() {
         logger.info("crunching global stats, this could take a while");
-        await seq.transaction({ autocommit: false }, async (transaction) => {
-            await Promise.map(global_points, async (tuple, idx, len) => {
-                const progress = Math.floor(100*100 * (1-idx/len)) / 100,
-                    where_aggr = tuple[0], where_links = tuple[1];
-                // aggregate participant_stats with our condition
-                let stats = await aggregate_stats(where_aggr);
-                if (stats != undefined) {
-                    stats.updated_at = seq.fn("NOW");
-                    logger.info("inserting global stat",
-                        { progress: progress });
-                    Object.assign(stats, where_links);
-                    await model.GlobalPoint.upsert(stats,
-                        { transaction: transaction });
-                } else logger.warn("not enough data for this global stat!",
+        await Promise.map(global_points, async (tuple, idx, len) => {
+            const progress = Math.floor(100*100 * (1-idx/len)) / 100,
+                where_aggr = tuple[0], where_links = tuple[1];
+            // aggregate participant_stats with our condition
+            let stats = await aggregate_stats(where_aggr);
+            if (stats != undefined) {
+                stats.updated_at = seq.fn("NOW");
+                logger.info("inserting global stat",
                     { progress: progress });
-            }, { concurrency: MAXCONNS });
-        });
+                Object.assign(stats, where_links);
+                await model.GlobalPoint.upsert(stats);
+            } else logger.warn("not enough data for this global stat!",
+                { progress: progress });
+        }, { concurrency: MAXCONNS });
         logger.info("committing");
     }
 
