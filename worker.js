@@ -113,9 +113,6 @@ function* chunks(arr) {
                         // merge custom filters
                         Object.assign(where_aggr,
                             tuple[1].get("filter"));
-                    // region is filter by name not by id
-                    } else if (tuple[0].tableName == "region") {
-                        where_aggr["$participant.shard_id$"] = tuple[1].get("name");
                     // series and skill_tier are ranged filters
                     } else if (tuple[0].tableName == "series") {
                         // use start < date < end comparison
@@ -131,6 +128,7 @@ function* chunks(arr) {
                     // build is a special ranged filter
                     } else if (tuple[0].tableName == "build") {
                         // TODO!
+                    // filtering is done via JOINs
                     } else where_aggr["$participant." + tuple[0].tableName + ".id$"] =
                         tuple[1].id
                 }
@@ -261,13 +259,14 @@ function* chunks(arr) {
             model: model.Participant,
             as: "participant",
             attributes: [],
-            include: [ {
-                model: model.Roster,
-                attributes: [],
-                include: [ {
-                    model: model.Match,
-                    attributes: []
-                } ]
+            include: [
+                {
+                    model: model.Roster,
+                    attributes: [],
+                    include: [ {
+                        model: model.Match,
+                        attributes: []
+                    } ]
                 }, {
                     model: model.Hero,
                     as: "hero",
@@ -284,7 +283,11 @@ function* chunks(arr) {
                     model: model.Role,
                     as: "role",
                     attributes: []
-            } ]
+                }, {
+                    model: model.Region,
+                    as: "region",
+                    attributes: []
+                } ]
         } ];
 
         const played = await model.ParticipantStats.count({
