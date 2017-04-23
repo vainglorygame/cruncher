@@ -128,8 +128,11 @@ function* chunks(arr) {
                     // build is a special ranged filter
                     } else if (tuple[0].tableName == "build") {
                         // TODO!
-                    // filtering is done via JOINs
-                    } else where_aggr["$participant." + tuple[0].tableName + ".id$"] =
+                    } else if (tuple[0].tableName == "region") {
+                        // not joined via id, joined via name
+                        where_aggr["$participant.shard_id$"] = tuple[1].get("name");
+                    // most filters are directly as $filter_id on participant
+                    } else where_aggr["$participant." + tuple[0].tableName + "_id$"] =
                         tuple[1].id
                 }
                 where_links[tuple[0].tableName + "_id"] = tuple[1].get("id");
@@ -203,14 +206,10 @@ function* chunks(arr) {
                 where_aggr = tuple[0], where_links = tuple[1];
             // aggregate participant_stats with our condition
             let stats = await aggregate_stats(where_aggr);
-            if (stats != undefined) {
-                stats.updated_at = seq.fn("NOW");
-                logger.info("inserting global stat",
-                    { progress: progress });
-                Object.assign(stats, where_links);
-                await model.GlobalPoint.upsert(stats);
-            } else logger.warn("not enough data for this global stat!",
-                { progress: progress });
+            stats.updated_at = seq.fn("NOW");
+            logger.info("inserting global stat", { progress: progress });
+            Object.assign(stats, where_links);
+            await model.GlobalPoint.upsert(stats);
         }, { concurrency: MAXCONNS });
         logger.info("committing");
     }
@@ -255,47 +254,6 @@ function* chunks(arr) {
         // alternative for win rate
         //[ seq.literal(`${e(seq.fn("sum", seq.cast(seq.col("participant.winner"), "int") ))} / ${e(seq.fn("count", seq.col("participant.id")))}`), "win_rate" ]
 
-        const associations = [ {
-            model: model.Participant,
-            as: "participant",
-            attributes: [],
-            include: [
-                {
-                    model: model.Roster,
-                    attributes: [],
-                    include: [ {
-                        model: model.Match,
-                        attributes: []
-                    } ]
-                }, {
-                    model: model.Hero,
-                    as: "hero",
-                    attributes: []
-                }, {
-                    model: model.Series,
-                    as: "series",
-                    attributes: []
-                }, {
-                    model: model.GameMode,
-                    as: "game_mode",
-                    attributes: []
-                }, {
-                    model: model.Role,
-                    as: "role",
-                    attributes: []
-                }, {
-                    model: model.Region,
-                    as: "region",
-                    attributes: []
-                } ]
-        } ];
-
-        const played = await model.ParticipantStats.count({
-            where: where,
-            include: associations
-        });
-        if (played == 0) return undefined;  // not enough data
-
         // short to sum a participant row as player stat with the same name
         const sum = (name) => [ seq.fn("sum", seq.col("participant_stats." + name)), name ];
 
@@ -303,7 +261,7 @@ function* chunks(arr) {
             where: where,
             attributes: [
                 [ seq.fn("count", seq.col("participant.id")), "played" ],
-                [ seq.fn("sum", seq.col("participant.roster.match.duration")), "time_spent" ],
+                //[ seq.fn("sum", seq.col("participant.roster.match.duration")), "time_spent" ],
                 [ seq.fn("sum", seq.cast(seq.col("participant.winner"), "int") ), "wins" ],
                 sum("kills"),
                 sum("deaths"),
@@ -337,7 +295,11 @@ function* chunks(arr) {
                 sum("kraken_captures"),
                 sum("gold")
             ],
-            include: associations
+            include: [ {
+                model: model.Participant,
+                as: "participant",
+                attributes: []
+            } ]
         });
         return data.dataValues;
     }
