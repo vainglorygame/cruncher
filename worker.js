@@ -16,7 +16,7 @@ const RABBITMQ_URI = process.env.RABBITMQ_URI,
     // number of inserts in one statement
     CHUNKSIZE = parseInt(process.env.CHUNKSIZE) || 300,
     MAXCONNS = parseInt(process.env.MAXCONNS) || 10,  // how many concurrent actions
-    CRUNCHERS = process.env.CRUNCHERS || 4;  // how many players to crunch concurrently
+    CRUNCHERS = parseInt(process.env.CRUNCHERS) || 4;  // how many players to crunch concurrently
 
 const logger = new (winston.Logger)({
         transports: [
