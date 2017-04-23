@@ -205,11 +205,11 @@ function* chunks(arr) {
                 let stats = await aggregate_stats(where_aggr);
                 if (stats != undefined) {
                     stats.updated_at = seq.fn("NOW");
-                    //logger.info("inserting global stats");
+                    logger.info("inserting global stat");
                     Object.assign(stats, where_links);
                     await model.GlobalPoint.upsert(stats,
                         { transaction: transaction });
-                } // else logger.warn("not enough data for this global stat!");
+                } else logger.warn("not enough data for this global stat!");
             }, { concurrency: MAXCONNS });
         });
         logger.info("committing");
