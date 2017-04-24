@@ -1,19 +1,19 @@
-INSERT LOW_PRIORITY INTO global_point
+INSERT LOW_PRIORITY INTO player_point
 SELECT
     NULL,
-    NOW(),
-    `series`.`id`,
-    `filter`.`id`,
-    `hero`.`id`,
-    `game_mode`.`id`,
-    `skill_tier`.`id`,
-    `build`.`id`,
-    `role`.`id`,
-    `region`.`id`,
+    `participant`.`player_api_id`,
 
     COUNT(`participant`.`id`) AS `played`,
     SUM(CAST(`participant`.`winner` AS INT)) AS `wins`,
     SUM(`duration`) AS `time_spent`,
+    
+    `series`.`id`,
+    `role`.`id`,
+    `filter`.`id`,
+    `hero`.`id`,
+    `game_mode`.`id`,
+    NOW(),
+    
     SUM(`participant_stats`.`kills`) AS `kills`,
     SUM(`participant_stats`.`deaths`) AS `deaths`,
     SUM(`participant_stats`.`assists`) AS `assists`,
@@ -25,6 +25,7 @@ SELECT
     SUM(`participant_stats`.`kraken_captures`) AS `kraken_captures`,
     SUM(`participant_stats`.`turret_captures`) AS `turret_captures`,
     SUM(`participant_stats`.`gold`) AS `gold`,
+    SUM(`participant_stats`.`hero_level`) AS `hero_level`,
     SUM(`participant_stats`.`kda_ratio`) AS `kda_ratio`,
     SUM(`participant_stats`.`kill_participation`) AS `kill_participation`,
     SUM(`participant_stats`.`cs_per_min`) AS `cs_per_min`,
