@@ -261,7 +261,7 @@ function* chunks(arr) {
             where: where,
             attributes: [
                 [ seq.fn("count", seq.col("participant.id")), "played" ],
-                //[ seq.fn("sum", seq.col("participant.roster.match.duration")), "time_spent" ],
+                [ seq.fn("sum", seq.col("duration")), "time_spent" ],
                 [ seq.fn("sum", seq.cast(seq.col("participant.winner"), "int") ), "wins" ],
                 sum("kills"),
                 sum("deaths"),
