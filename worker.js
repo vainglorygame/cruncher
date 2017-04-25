@@ -82,7 +82,7 @@ if (LOGGLY_TOKEN)
     await ch.prefetch(BATCHSIZE);
     ch.consume("crunch", (msg) => {
         const api_id = msg.content.toString();
-        if (msg.type == "global")
+        if (msg.properties.type == "global")
             participants.add(api_id);
         // else exclusively add data to player, used for player refresh
         participants_player.add(api_id);
