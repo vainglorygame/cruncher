@@ -73,7 +73,7 @@ if (LOGGLY_TOKEN)
 
     // fill a buffer and execute an SQL on a bigger (> 1o) batch
     const participants_player = new Set(),
-        participants = new Set(),
+        participants_global = new Set(),
         // store the msgs that should be ACKed
         buffer = new Set();
     let timeout = undefined;
@@ -83,9 +83,9 @@ if (LOGGLY_TOKEN)
     ch.consume("crunch", (msg) => {
         const api_id = msg.content.toString();
         if (msg.properties.type == "global")
-            participants.add(api_id);
-        // else exclusively add data to player, used for player refresh
-        participants_player.add(api_id);
+            participants_global.add(api_id);
+        if (msg.properties.type == "player")
+            participants_player.add(api_id);
         buffer.add(msg);
         if (timeout == undefined) timeout = setTimeout(crunch, LOAD_TIMEOUT*1000);
         if (buffer.size >= BATCHSIZE) crunch();
@@ -98,17 +98,17 @@ if (LOGGLY_TOKEN)
 
         // prevent async issues
         const api_ids_player = [...participants_player],
-            api_ids = [...participants],
+            api_ids_global = [...participants_global],
             msgs = new Set(buffer);
-        participants.clear();
+        participants_global.clear();
         participants_player.clear();
         buffer.clear();
         clearTimeout(timeout);
         timeout = undefined;
 
-        if (api_ids.length > 0)
+        if (api_ids_global.length > 0)
             await seq.query(global_script, {
-                replacements: { participant_api_ids: api_ids },
+                replacements: { participant_api_ids: api_ids_global },
                 type: seq.QueryTypes.UPSERT
             });
         if (api_ids_player.length > 0)
@@ -123,7 +123,7 @@ if (LOGGLY_TOKEN)
         // TODO notify for player too
         await ch.publish("amq.topic", "global", new Buffer("points_update"));
 
-        profiler.done("crunched");
+        profiler.done("crunched", { size: msgs.size });
     }
 })();
 
