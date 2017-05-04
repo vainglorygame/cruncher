@@ -53,7 +53,7 @@ if (LOGGLY_TOKEN)
     while (true) {
         try {
             seq = new Seq(DATABASE_URI, {
-                logging: false,
+                //logging: false,
                 max: MAXCONNS
             }),
             rabbit = await amqp.connect(RABBITMQ_URI, { heartbeat: 320 }),
@@ -69,16 +69,19 @@ if (LOGGLY_TOKEN)
     // load update SQL scripts; scripts use sequelize replacements
     // for the `participant_api_id` array
     const player_script = fs.readFileSync("crunch_player.sql", "utf8"),
+        team_script = fs.readFileSync("crunch_team.sql", "utf8"),
         global_script = fs.readFileSync("crunch_global.sql", "utf8");
 
     // fill a buffer and execute an SQL on a bigger (> 1o) batch
     const participants_player = new Set(),
+        teams = new Set(),
         participants_global = new Set(),
         // store the msgs that should be ACKed
         buffer = new Set();
     let timeout = undefined;
 
     // set maximum allowed number of unacked msgs
+    // TODO maybe split queues by type
     await ch.prefetch(BATCHSIZE);
     ch.consume("crunch", (msg) => {
         const api_id = msg.content.toString();
@@ -86,6 +89,8 @@ if (LOGGLY_TOKEN)
             participants_global.add(api_id);
         if (msg.properties.type == "player")
             participants_player.add(api_id);
+        if (msg.properties.type == "team")
+            teams.add(api_id);
         buffer.add(msg);
         if (timeout == undefined) timeout = setTimeout(crunch, LOAD_TIMEOUT*1000);
         if (buffer.size >= BATCHSIZE) crunch();
@@ -98,9 +103,11 @@ if (LOGGLY_TOKEN)
 
         // prevent async issues
         const api_ids_player = [...participants_player],
+            team_ids = [...teams],
             api_ids_global = [...participants_global],
             msgs = new Set(buffer);
         participants_global.clear();
+        teams.clear();
         participants_player.clear();
         buffer.clear();
         clearTimeout(timeout);
@@ -110,6 +117,11 @@ if (LOGGLY_TOKEN)
             await seq.query(global_script, {
                 replacements: { participant_api_ids: api_ids_global },
                 type: seq.QueryTypes.UPSERT
+            });
+        if (team_ids.length > 0)
+            await seq.query(team_script, {
+                replacements: { team_ids: team_ids },
+                type: seq.QueryTypes.UPDATE
             });
         if (api_ids_player.length > 0)
             await seq.query(player_script, {

@@ -1,0 +1,34 @@
+UPDATE team_membership tm
+JOIN (
+    SELECT
+    tm.id AS tm_id,
+    SUM(
+        (1 + (tm_cnt-2) * 0.3) *
+        (p.winner * 0.3 + 0.7) *
+        (CASE
+            WHEN tm.status='initiate' THEN 10
+            WHEN tm.status='member' THEN 75
+            WHEN tm.status='veteran' THEN 100
+            WHEN tm.status='officer' THEN 125
+            WHEN tm.status='leader' THEN 125
+        END)
+    ) AS fame
+    FROM (
+        SELECT
+        t.id AS t_id,
+        m.api_id AS m_api_id,
+        COUNT(tm.id) AS tm_cnt
+        FROM participant p
+        JOIN player pl ON p.player_api_id = pl.api_id
+        JOIN team_membership tm ON pl.api_id = tm.player_api_id
+        JOIN team t ON tm.team_id = t.id
+        JOIN roster r ON p.roster_api_id = r.api_id
+        JOIN `match` m ON r.match_api_id = m.api_id
+        WHERE t.id IN (:team_ids)
+        GROUP BY t.id, m.api_id, r.id
+    ) AS cnt_by_m
+    JOIN participant p ON p.match_api_id = cnt_by_m.m_api_id
+    JOIN team_membership tm ON cnt_by_m.t_id = tm.team_id AND tm.player_api_id = p.player_api_id
+    GROUP BY tm.id
+) AS fame_diff ON tm.id = fame_diff.tm_id
+SET tm.fame = fame_diff.fame
