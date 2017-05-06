@@ -7,11 +7,11 @@ JOIN (
             WHEN tm_cnt=1 THEN 0.33
             WHEN tm_cnt=2 THEN 0.66
             WHEN tm_cnt=3 THEN 1.33
-        ) *
+        END) *
         (CASE
-            WHEN p.winner THEN 1
-            WHEN NOT p.winner THEN 0.7
-        ) *
+            WHEN p.winner=TRUE THEN 1
+            WHEN p.winner=FALSE THEN 0.7
+        END) *
         (CASE
             WHEN tm.status='initiate' THEN 10
             WHEN tm.status='member' THEN 75
