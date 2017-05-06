@@ -3,8 +3,15 @@ JOIN (
     SELECT
     tm.id AS tm_id,
     SUM(
-        (1 + (tm_cnt-2) * 0.3) *
-        (p.winner * 0.3 + 0.7) *
+        (CASE
+            WHEN tm_cnt=1 THEN 0.33
+            WHEN tm_cnt=2 THEN 0.66
+            WHEN tm_cnt=3 THEN 1.33
+        ) *
+        (CASE
+            WHEN p.winner THEN 1
+            WHEN NOT p.winner THEN 0.7
+        ) *
         (CASE
             WHEN tm.status='initiate' THEN 10
             WHEN tm.status='member' THEN 75
