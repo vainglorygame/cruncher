@@ -118,11 +118,14 @@ if (LOGGLY_TOKEN)
                 replacements: { participant_api_ids: api_ids_global },
                 type: seq.QueryTypes.UPSERT
             });
-        if (team_ids.length > 0)
-            await seq.query(team_script, {
-                replacements: { team_ids: team_ids },
-                type: seq.QueryTypes.UPDATE
-            });
+        if (team_ids.length > 0) {
+            await Promise.each(team_ids, async (tid) =>
+                await seq.query(team_script, {
+                    replacements: { team_id: tid },
+                    type: seq.QueryTypes.UPDATE
+                })
+            );
+        }
         if (api_ids_player.length > 0)
             await seq.query(player_script, {
                 replacements: { participant_api_ids: api_ids_player },

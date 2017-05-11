@@ -31,7 +31,7 @@ JOIN (
         JOIN team t ON tm.team_id = t.id
         JOIN roster r ON p.roster_api_id = r.api_id
         JOIN `match` m ON r.match_api_id = m.api_id
-        WHERE t.id IN (:team_ids)
+        WHERE t.id = :team_id
         GROUP BY t.id, m.api_id, r.id
     ) AS cnt_by_m
     JOIN participant p ON p.match_api_id = cnt_by_m.m_api_id
