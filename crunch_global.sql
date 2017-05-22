@@ -55,7 +55,14 @@ JOIN `filter` ON `filter`.`name` = 'all' AND `filter`.`dimension_on` = 'global'
 JOIN `hero` ON `hero`.`id` = `participant`.`hero_id` OR `hero`.`name` = 'all'
 JOIN `game_mode` ON `game_mode`.`id` = `participant`.`game_mode_id` OR `game_mode`.`name` = 'all'
 JOIN `skill_tier` ON `participant`.`skill_tier` BETWEEN `skill_tier`.`start` AND `skill_tier`.`end` OR `skill_tier`.`name` = 'all'
-JOIN `build` ON `build`.`name` = 'all'
+JOIN `build` ON `build`.`name` = 'all' OR (
+    `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_1`, :build_regex_end) AND
+    `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_2`, :build_regex_end) AND
+    `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_3`, :build_regex_end) AND
+    `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_4`, :build_regex_end) AND
+    `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_5`, :build_regex_end) AND
+    `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_6`, :build_regex_end)
+)
 JOIN `role` ON `role`.`id` = `participant`.`role_id` OR `role`.`name` = 'all'
 JOIN `region` ON `region`.`name` = `participant`.`shard_id` OR `region`.`name` = 'all'
 

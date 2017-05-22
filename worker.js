@@ -115,7 +115,11 @@ if (LOGGLY_TOKEN)
 
         if (api_ids_global.length > 0)
             await seq.query(global_script, {
-                replacements: { participant_api_ids: api_ids_global },
+                replacements: {
+                    participant_api_ids: api_ids_global,
+                    build_regex_start: '^([[:digit:]]+;[[:digit:]]+,)*(',
+                    build_regex_end: ')+(,[[:digit:]]+;[[:digit:]]+)*$'
+                },
                 type: seq.QueryTypes.UPSERT
             });
         if (team_ids.length > 0) {
