@@ -12,7 +12,7 @@ SELECT
     `filter`.`id`,
     `hero`.`id`,
     `game_mode`.`id`,
-    NOW(),
+    `participant`.`created_at`,
     
     SUM(`participant_stats`.`kills`) AS `kills`,
     SUM(`participant_stats`.`deaths`) AS `deaths`,
