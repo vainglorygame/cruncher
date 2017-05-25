@@ -20,6 +20,7 @@ const amqp = require("amqplib"),
 
 const RABBITMQ_URI = process.env.RABBITMQ_URI,
     DATABASE_URI = process.env.DATABASE_URI,
+    QUEUE = process.env.QUEUE || "crunch",
     LOGGLY_TOKEN = process.env.LOGGLY_TOKEN,
     // size of connection pool
     MAXCONNS = parseInt(process.env.MAXCONNS) || 3,
@@ -41,7 +42,7 @@ if (LOGGLY_TOKEN)
     logger.add(winston.transports.Loggly, {
         inputToken: LOGGLY_TOKEN,
         subdomain: "kvahuja",
-        tags: ["backend", "cruncher"],
+        tags: ["backend", "cruncher", QUEUE],
         json: true
     });
 
@@ -58,7 +59,7 @@ if (LOGGLY_TOKEN)
             }),
             rabbit = await amqp.connect(RABBITMQ_URI, { heartbeat: 320 }),
             ch = await rabbit.createChannel();
-            await ch.assertQueue("crunch", {durable: true});
+            await ch.assertQueue(QUEUE, {durable: true});
             break;
         } catch (err) {
             logger.error("Error connecting", err);
@@ -83,7 +84,7 @@ if (LOGGLY_TOKEN)
     // set maximum allowed number of unacked msgs
     // TODO maybe split queues by type
     await ch.prefetch(BATCHSIZE);
-    ch.consume("crunch", (msg) => {
+    ch.consume(QUEUE, (msg) => {
         const api_id = msg.content.toString();
         if (msg.properties.type == "global")
             participants_global.add(api_id);
