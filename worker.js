@@ -139,15 +139,16 @@ if (LOGGLY_TOKEN)
                 type: seq.QueryTypes.UPSERT
             });
 
+        // notify web
+        // TODO notify for player too
+        await ch.publish("amq.topic", "global", new Buffer("points_update"));
+
         if (SLOWMODE > 0) {
             logger.info("slowmode active, sleeping…", { wait: SLOWMODE });
             await sleep(SLOWMODE * 1000);
         }
         // ack
         await Promise.map(msgs, async (m) => await ch.ack(m));
-        // notify web
-        // TODO notify for player too
-        await ch.publish("amq.topic", "global", new Buffer("points_update"));
 
         profiler.done("crunched", { size: msgs.size });
     }
