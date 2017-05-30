@@ -68,6 +68,7 @@ ORDER BY `participant`.`id`
 ON DUPLICATE KEY UPDATE
 `played` = `played` + VALUES(`played`),
 `wins` = `wins` + VALUES(`wins`),
+`time_spent` = `time_spent` + VALUES(`time_spent`),
 `kills` = `kills` + VALUES(`kills`),
 `deaths` = `deaths` + VALUES(`deaths`),
 `assists` = `assists` + VALUES(`assists`),
