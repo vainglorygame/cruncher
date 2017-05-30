@@ -56,7 +56,7 @@ if (LOGGLY_TOKEN)
     while (true) {
         try {
             seq = new Seq(DATABASE_URI, {
-                //logging: false,
+                logging: false,
                 max: MAXCONNS
             }),
             rabbit = await amqp.connect(RABBITMQ_URI, { heartbeat: 320 }),
