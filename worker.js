@@ -26,7 +26,9 @@ const RABBITMQ_URI = process.env.RABBITMQ_URI,
     MAXCONNS = parseInt(process.env.MAXCONNS) || 3,
     // number of participants to calculate at once
     BATCHSIZE = parseInt(process.env.BATCHSIZE) || 1000,
-    LOAD_TIMEOUT = parseInt(process.env.LOAD_TIMEOUT) || 5;  // s
+    LOAD_TIMEOUT = parseInt(process.env.LOAD_TIMEOUT) || 5,  // s
+    // wait time before next batch
+    SLOWMODE = parseInt(process.env.SLOWMODE) || 0;  // s
 
 const logger = new (winston.Logger)({
         transports: [
@@ -137,6 +139,10 @@ if (LOGGLY_TOKEN)
                 type: seq.QueryTypes.UPSERT
             });
 
+        if (SLOWMODE > 0) {
+            logger.info("slowmode active, sleeping…", { wait: SLOWMODE });
+            await sleep(SLOWMODE * 1000);
+        }
         // ack
         await Promise.map(msgs, async (m) => await ch.ack(m));
         // notify web
