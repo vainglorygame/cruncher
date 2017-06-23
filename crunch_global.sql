@@ -40,7 +40,6 @@ JOIN `role` `player_role` ON `player_role`.`id` = `player`.`role_id` OR `player_
 JOIN `region` ON `region`.`name` = `player`.`shard_id` OR `region`.`name` = 'all'
 
 -- filters
-JOIN `global_point_filters` ON `player`.`match_api_id` = `global_point_filters`.`match_api_id`
 JOIN `filter` ON (`filter`.`name` = 'all' AND `filter`.`dimension_on` = 'global') OR `filter`.`id` IN (SELECT `global_point_filters`.`filter_id` FROM `global_point_filters` WHERE `global_point_filters`.`match_api_id` = `player`.`match_api_id`)
 
 -- being cheap
