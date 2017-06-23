@@ -50,9 +50,12 @@ JOIN `skill_tier` ON `player`.`skill_tier` BETWEEN `skill_tier`.`start` AND `ski
 -- builds and counters do not cross 
 -- builds
 JOIN `build` ON `build`.`name` = 'all' OR (
-    -- do not cross daily series, filters (builds excluded below)
+    -- do not cross daily series, filters, game mode, skill tier, region (builds excluded below)
     `series`.`show_in_web` = TRUE AND
     `filter`.`name` = 'all' AND
+    `game_mode`.`name` = 'all' AND
+    `skill_tier`.`name` = 'all' AND
+    `region`.`name` = 'all' AND
 
     `build`.`item_1` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_1`, ';', `build`.`item_1_count`, :build_regex_end) AND
     `build`.`item_2` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_2`, ';', `build`.`item_2_count`, :build_regex_end) AND
@@ -64,10 +67,13 @@ JOIN `build` ON `build`.`name` = 'all' OR (
 
 -- counters
 JOIN `participant` `enemy` ON `enemy`.`match_api_id` = `player`.`match_api_id` AND `enemy`.`winner` <> `player`.`winner`
-    -- do not cross daily series, builds, filters
+    -- do not cross daily series, builds, filters, game mode, skill tier, region
     AND `series`.`show_in_web` = TRUE
     AND `build`.`name` = 'all'
     AND `filter`.`name` = 'all'
+    AND `game_mode`.`name` = 'all'
+    AND `skill_tier`.`name` = 'all'
+    AND `region`.`name` = 'all'
 JOIN `hero` `enemy_hero` ON `enemy_hero`.`id` = `enemy`.`hero_id` OR `enemy_hero`.`name` = 'all'
 JOIN `role` `enemy_role` ON `enemy_role`.`id` = `enemy`.`role_id` OR `enemy_role`.`name` = 'all'
 
