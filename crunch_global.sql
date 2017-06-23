@@ -41,7 +41,7 @@ JOIN `region` ON `region`.`name` = `player`.`shard_id` OR `region`.`name` = 'all
 
 -- filters
 JOIN `global_point_filters` ON `player`.`match_api_id` = `global_point_filters`.`match_api_id`
-JOIN `filter` ON (`filter`.`name` = 'all' AND `filter`.`dimension_on` = 'global') OR `global_point_filters`.`filter_id` = `filter`.`id`
+JOIN `filter` ON (`filter`.`name` = 'all' AND `filter`.`dimension_on` = 'global') OR `filter`.`id` IN (SELECT `global_point_filters`.`filter_id` FROM `global_point_filters` WHERE `global_point_filters`.`match_api_id` = `player`.`match_api_id`)
 
 -- being cheap
 JOIN `game_mode` ON `game_mode`.`id` = `player`.`game_mode_id` OR `game_mode`.`name` = 'all'
