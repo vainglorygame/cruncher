@@ -4,19 +4,23 @@ SELECT
     NOW(),
     `series`.`id`,
     `filter`.`id`,
-    `hero`.`id`,
+    `player_hero`.`id`,
     `game_mode`.`id`,
     `skill_tier`.`id`,
     `build`.`id`,
-    `role`.`id`,
+    `player_role`.`id`,
+    `enemy_hero`.`id`,
+    `enemy_role`.`id`,
     `region`.`id`,
 
-    COUNT(`participant`.`id`) AS `played`,
-    SUM(CAST(`participant`.`winner` AS INT)) AS `wins`,
-    SUM(`duration`) AS `time_spent`,
+    -- everything added here needs to be in ON DUPLICATE too!!!
+    COUNT(`player`.`id`) AS `played`,
+    SUM(CAST(`player`.`winner` AS INT)) AS `wins`,
+    SUM(`participant_stats`.`duration`) AS `time_spent`,
     SUM(`participant_stats`.`kills`) AS `kills`,
     SUM(`participant_stats`.`deaths`) AS `deaths`,
     SUM(`participant_stats`.`assists`) AS `assists`,
+    SUM(`participant_stats`.`farm`) AS `farm`,
     SUM(`participant_stats`.`minion_kills`) AS `minion_kills`,
     SUM(`participant_stats`.`jungle_kills`) AS `jungle_kills`,
     SUM(`participant_stats`.`non_jungle_minion_kills`) AS `non_jungle_minion_kills`,
@@ -25,51 +29,52 @@ SELECT
     SUM(`participant_stats`.`kraken_captures`) AS `kraken_captures`,
     SUM(`participant_stats`.`turret_captures`) AS `turret_captures`,
     SUM(`participant_stats`.`gold`) AS `gold`,
-    SUM(`participant_stats`.`kda_ratio`) AS `kda_ratio`,
-    SUM(`participant_stats`.`kill_participation`) AS `kill_participation`,
-    SUM(`participant_stats`.`cs_per_min`) AS `cs_per_min`,
-    SUM(`participant_stats`.`kills_per_min`) AS `kills_per_min`,
-    SUM(`participant_stats`.`impact_score`) AS `impact_score`,
-    SUM(`participant_stats`.`objective_score`) AS `objective_score`,
-    SUM(`participant_stats`.`damage_cp_score`) AS `damage_cp_score`,
-    SUM(`participant_stats`.`damage_wp_score`) AS `damage_wp_score`,
-    SUM(`participant_stats`.`sustain_score`) AS `sustain_score`,
-    SUM(`participant_stats`.`farm_lane_score`) AS `farm_lane_score`,
-    SUM(`participant_stats`.`kill_score`) AS `kill_score`,
-    SUM(`participant_stats`.`objective_lane_score`) AS `objective_lane_score`,
-    SUM(`participant_stats`.`farm_jungle_score`) AS `farm_jungle_score`,
-    SUM(`participant_stats`.`peel_score`) AS `peel_score`,
-    SUM(`participant_stats`.`kill_assist_score`) AS `kill_assist_score`,
-    SUM(`participant_stats`.`objective_jungle_score`) AS `objective_jungle_score`,
-    SUM(`participant_stats`.`vision_score`) AS `vision_score`,
-    SUM(`participant_stats`.`heal_score`) AS `heal_score`,
-    SUM(`participant_stats`.`assist_score`) AS `assist_score`,
-    SUM(`participant_stats`.`utility_score`) AS `utility_score`,
-    SUM(`participant_stats`.`synergy_score`) AS `synergy_score`,
-    SUM(`participant_stats`.`build_score`) AS `build_score`,
-    SUM(`participant_stats`.`offmeta_score`) AS `offmeta_score`
-FROM `participant`
-JOIN `participant_stats` ON `participant_stats`.`participant_api_id` = `participant`.`api_id`
+    SUM(`participant_stats`.`impact_score`) AS `impact_score`
+FROM `participant` `player`
+JOIN `participant_stats` ON `participant_stats`.`participant_api_id` = `player`.`api_id`
+
+-- dimensions
 JOIN `series` ON `participant_stats`.`created_at` BETWEEN `series`.`start` AND `series`.`end` AND `series`.`dimension_on` = 'global'
+JOIN `hero` `player_hero` ON `player_hero`.`id` = `player`.`hero_id` OR `player_hero`.`name` = 'all'
+JOIN `role` `player_role` ON `player_role`.`id` = `player`.`role_id` OR `player_role`.`name` = 'all'
+JOIN `region` ON `region`.`name` = `player`.`shard_id` OR `region`.`name` = 'all'
+
+-- being cheap
 JOIN `filter` ON `filter`.`name` = 'all' AND `filter`.`dimension_on` = 'global'
-JOIN `hero` ON `hero`.`id` = `participant`.`hero_id` OR `hero`.`name` = 'all'
-JOIN `game_mode` ON `game_mode`.`id` = `participant`.`game_mode_id` OR `game_mode`.`name` = 'all'
-JOIN `skill_tier` ON `participant`.`skill_tier` BETWEEN `skill_tier`.`start` AND `skill_tier`.`end` OR `skill_tier`.`name` = 'all'
+    AND `series`.`show_in_web` = TRUE
+JOIN `game_mode` ON `game_mode`.`id` = `player`.`game_mode_id` OR `game_mode`.`name` = 'all'
+    AND `series`.`show_in_web` = TRUE
+JOIN `skill_tier` ON `player`.`skill_tier` BETWEEN `skill_tier`.`start` AND `skill_tier`.`end` OR `skill_tier`.`name` = 'all'
+    AND `series`.`show_in_web` = TRUE
+
+-- builds and counters do not cross 
+-- builds
 JOIN `build` ON `build`.`name` = 'all' OR (
-    `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_1`, :build_regex_end) AND
-    `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_2`, :build_regex_end) AND
-    `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_3`, :build_regex_end) AND
-    `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_4`, :build_regex_end) AND
-    `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_5`, :build_regex_end) AND
-    `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_6`, :build_regex_end)
+    -- do not cross daily series, filters (builds excluded below)
+    `series`.`show_in_web` = TRUE AND
+    `filter`.`name` = 'all' AND
+
+    `build`.`item_1` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT('^([[:digit:]]+;[[:digit:]]+,)*(', `build`.`item_1`, ';', `build`.`item_1_count`, ')+(,[[:digit:]]+;[[:digit:]]+)*$') AND
+    `build`.`item_2` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT('^([[:digit:]]+;[[:digit:]]+,)*(', `build`.`item_2`, ';', `build`.`item_2_count`, ')+(,[[:digit:]]+;[[:digit:]]+)*$') AND
+    `build`.`item_3` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT('^([[:digit:]]+;[[:digit:]]+,)*(', `build`.`item_3`, ';', `build`.`item_3_count`, ')+(,[[:digit:]]+;[[:digit:]]+)*$') AND
+    `build`.`item_4` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT('^([[:digit:]]+;[[:digit:]]+,)*(', `build`.`item_4`, ';', `build`.`item_4_count`, ')+(,[[:digit:]]+;[[:digit:]]+)*$') AND
+    `build`.`item_5` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT('^([[:digit:]]+;[[:digit:]]+,)*(', `build`.`item_5`, ';', `build`.`item_5_count`, ')+(,[[:digit:]]+;[[:digit:]]+)*$') AND
+    `build`.`item_6` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT('^([[:digit:]]+;[[:digit:]]+,)*(', `build`.`item_6`, ';', `build`.`item_6_count`, ')+(,[[:digit:]]+;[[:digit:]]+)*$')
 )
-JOIN `role` ON `role`.`id` = `participant`.`role_id` OR `role`.`name` = 'all'
-JOIN `region` ON `region`.`name` = `participant`.`shard_id` OR `region`.`name` = 'all'
 
-WHERE `participant`.`api_id` IN (:participant_api_ids)
+-- counters
+JOIN `participant` `enemy` ON `enemy`.`match_api_id` = `player`.`match_api_id` AND `enemy`.`winner` <> `player`.`winner`
+    -- do not cross daily series, builds, filters
+    AND `series`.`show_in_web` = TRUE
+    AND `build`.`name` = 'all'
+    AND `filter`.`name` = 'all'
+JOIN `hero` `enemy_hero` ON `enemy_hero`.`id` = `enemy`.`hero_id` OR `enemy_hero`.`name` = 'all'
+JOIN `role` `enemy_role` ON `enemy_role`.`id` = `enemy`.`role_id` OR `enemy_role`.`name` = 'all'
 
-GROUP BY `series`.`id`, `filter`.`id`, `hero`.`id`, `game_mode`.`id`, `skill_tier`.`id`, `build`.`id`, `role`.`id`, `region`.`id`
-ORDER BY `participant`.`id`
+WHERE `player`.`api_id` IN (:participant_api_ids)
+
+GROUP BY `series`.`id`, `filter`.`id`, `player_hero`.`id`, `game_mode`.`id`, `skill_tier`.`id`, `build`.`id`, `player_role`.`id`, `enemy_hero`.`id`, `enemy_role`.`id`, `region`.`id`
+ORDER BY `player`.`id`
 
 ON DUPLICATE KEY UPDATE
 `played` = `played` + VALUES(`played`),
@@ -78,6 +83,7 @@ ON DUPLICATE KEY UPDATE
 `kills` = `kills` + VALUES(`kills`),
 `deaths` = `deaths` + VALUES(`deaths`),
 `assists` = `assists` + VALUES(`assists`),
+`farm` = `farm` + VALUES(`farm`),
 `minion_kills` = `minion_kills` + VALUES(`minion_kills`),
 `jungle_kills` = `jungle_kills` + VALUES(`jungle_kills`),
 `non_jungle_minion_kills` = `non_jungle_minion_kills` + VALUES(`non_jungle_minion_kills`),
@@ -86,26 +92,4 @@ ON DUPLICATE KEY UPDATE
 `kraken_captures` = `kraken_captures` + VALUES(`kraken_captures`),
 `turret_captures` = `turret_captures` + VALUES(`turret_captures`),
 `gold` = `gold` + VALUES(`gold`),
-`kda_ratio` = `kda_ratio` + VALUES(`kda_ratio`),
-`kill_participation` = `kill_participation` + VALUES(`kill_participation`),
-`cs_per_min` = `cs_per_min` + VALUES(`cs_per_min`),
-`kills_per_min` = `kills_per_min` + VALUES(`kills_per_min`),
-`impact_score` = `impact_score` + VALUES(`impact_score`),
-`objective_score` = `objective_score` + VALUES(`objective_score`),
-`damage_cp_score` = `damage_cp_score` + VALUES(`damage_cp_score`),
-`damage_wp_score` = `damage_wp_score` + VALUES(`damage_wp_score`),
-`sustain_score` = `sustain_score` + VALUES(`sustain_score`),
-`farm_lane_score` = `farm_lane_score` + VALUES(`farm_lane_score`),
-`kill_score` = `kill_score` + VALUES(`kill_score`),
-`objective_lane_score` = `objective_lane_score` + VALUES(`objective_lane_score`),
-`farm_jungle_score` = `farm_jungle_score` + VALUES(`farm_jungle_score`),
-`peel_score` = `peel_score` + VALUES(`peel_score`),
-`kill_assist_score` = `kill_assist_score` + VALUES(`kill_assist_score`),
-`objective_jungle_score` = `objective_jungle_score` + VALUES(`objective_jungle_score`),
-`vision_score` = `vision_score` + VALUES(`vision_score`),
-`heal_score` = `heal_score` + VALUES(`heal_score`),
-`assist_score` = `assist_score` + VALUES(`assist_score`),
-`utility_score` = `utility_score` + VALUES(`utility_score`),
-`synergy_score` = `synergy_score` + VALUES(`synergy_score`),
-`build_score` = `build_score` + VALUES(`build_score`),
-`offmeta_score` = `offmeta_score` + VALUES(`offmeta_score`)
+`impact_score` = `impact_score` + VALUES(`impact_score`)
