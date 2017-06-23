@@ -39,9 +39,11 @@ JOIN `hero` `player_hero` ON `player_hero`.`id` = `player`.`hero_id` OR `player_
 JOIN `role` `player_role` ON `player_role`.`id` = `player`.`role_id` OR `player_role`.`name` = 'all'
 JOIN `region` ON `region`.`name` = `player`.`shard_id` OR `region`.`name` = 'all'
 
+-- filters
+JOIN `global_point_filters` ON `player`.`match_api_id` = `global_point_filters`.`match_api_id`
+JOIN `filter` ON (`filter`.`name` = 'all' AND `filter`.`dimension_on` = 'global') OR `global_point_filters`.`filter_id` = `filter`.`id`
+
 -- being cheap
-JOIN `filter` ON `filter`.`name` = 'all' AND `filter`.`dimension_on` = 'global'
-    AND `series`.`show_in_web` = TRUE
 JOIN `game_mode` ON `game_mode`.`id` = `player`.`game_mode_id` OR `game_mode`.`name` = 'all'
     AND `series`.`show_in_web` = TRUE
 JOIN `skill_tier` ON `player`.`skill_tier` BETWEEN `skill_tier`.`start` AND `skill_tier`.`end` OR `skill_tier`.`name` = 'all'
@@ -50,9 +52,8 @@ JOIN `skill_tier` ON `player`.`skill_tier` BETWEEN `skill_tier`.`start` AND `ski
 -- builds and counters do not cross 
 -- builds
 JOIN `build` ON `build`.`name` = 'all' OR (
-    -- do not cross daily series, filters, game mode, skill tier, region (builds excluded below)
+    -- do not cross daily series, game mode, skill tier, region (builds excluded below)
     `series`.`show_in_web` = TRUE AND
-    `filter`.`name` = 'all' AND
     `game_mode`.`name` = 'all' AND
     `skill_tier`.`name` = 'all' AND
     `region`.`name` = 'all' AND
@@ -67,10 +68,9 @@ JOIN `build` ON `build`.`name` = 'all' OR (
 
 -- counters
 JOIN `participant` `enemy` ON `enemy`.`match_api_id` = `player`.`match_api_id` AND `enemy`.`winner` <> `player`.`winner`
-    -- do not cross daily series, builds, filters, game mode, skill tier, region
+    -- do not cross daily series, builds, game mode, skill tier, region
     AND `series`.`show_in_web` = TRUE
     AND `build`.`name` = 'all'
-    AND `filter`.`name` = 'all'
     AND `game_mode`.`name` = 'all'
     AND `skill_tier`.`name` = 'all'
     AND `region`.`name` = 'all'
