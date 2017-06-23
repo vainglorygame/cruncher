@@ -63,7 +63,8 @@ JOIN `build` ON `build`.`name` = 'all' OR (
     `build`.`item_3` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_3`, ';', `build`.`item_3_count`, :build_regex_end) AND
     `build`.`item_4` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_4`, ';', `build`.`item_4_count`, :build_regex_end) AND
     `build`.`item_5` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_5`, ';', `build`.`item_5_count`, :build_regex_end) AND
-    `build`.`item_6` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_6`, ';', `build`.`item_6_count`, :build_regex_end)
+    `build`.`item_6` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_6`, ';', `build`.`item_6_count`, :build_regex_end) AND
+    `build`.`dimension_on` = 'global'
 )
 
 -- counters
