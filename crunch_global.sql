@@ -54,12 +54,12 @@ JOIN `build` ON `build`.`name` = 'all' OR (
     `series`.`show_in_web` = TRUE AND
     `filter`.`name` = 'all' AND
 
-    `build`.`item_1` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT('^([[:digit:]]+;[[:digit:]]+,)*(', `build`.`item_1`, ';', `build`.`item_1_count`, ')+(,[[:digit:]]+;[[:digit:]]+)*$') AND
-    `build`.`item_2` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT('^([[:digit:]]+;[[:digit:]]+,)*(', `build`.`item_2`, ';', `build`.`item_2_count`, ')+(,[[:digit:]]+;[[:digit:]]+)*$') AND
-    `build`.`item_3` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT('^([[:digit:]]+;[[:digit:]]+,)*(', `build`.`item_3`, ';', `build`.`item_3_count`, ')+(,[[:digit:]]+;[[:digit:]]+)*$') AND
-    `build`.`item_4` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT('^([[:digit:]]+;[[:digit:]]+,)*(', `build`.`item_4`, ';', `build`.`item_4_count`, ')+(,[[:digit:]]+;[[:digit:]]+)*$') AND
-    `build`.`item_5` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT('^([[:digit:]]+;[[:digit:]]+,)*(', `build`.`item_5`, ';', `build`.`item_5_count`, ')+(,[[:digit:]]+;[[:digit:]]+)*$') AND
-    `build`.`item_6` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT('^([[:digit:]]+;[[:digit:]]+,)*(', `build`.`item_6`, ';', `build`.`item_6_count`, ')+(,[[:digit:]]+;[[:digit:]]+)*$')
+    `build`.`item_1` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_1`, ';', `build`.`item_1_count`, :build_regex_end) AND
+    `build`.`item_2` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_2`, ';', `build`.`item_2_count`, :build_regex_end) AND
+    `build`.`item_3` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_3`, ';', `build`.`item_3_count`, :build_regex_end) AND
+    `build`.`item_4` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_4`, ';', `build`.`item_4_count`, :build_regex_end) AND
+    `build`.`item_5` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_5`, ';', `build`.`item_5_count`, :build_regex_end) AND
+    `build`.`item_6` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_6`, ';', `build`.`item_6_count`, :build_regex_end)
 )
 
 -- counters
