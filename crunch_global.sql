@@ -1,101 +1,78 @@
-INSERT LOW_PRIORITY INTO global_point
-SELECT
-    NULL,
-    NOW(),
-    `series`.`id`,
-    `filter`.`id`,
-    `player_hero`.`id`,
-    `game_mode`.`id`,
-    `skill_tier`.`id`,
-    `build`.`id`,
-    `player_role`.`id`,
-    `enemy_hero`.`id`,
-    `enemy_role`.`id`,
-    `region`.`id`,
+insert low_priority into global_point
+select
+    null,
+    now(),
+    s.id as series_id,
+    f.id as filter_id,
+    h.id as hero_id,
+    gm.id as game_mode_id,
+    st.id as skill_tier_id,
+    b.id as build_id,
+    r.id as role_id,
+    1,
+    1,
+    reg.id as region_id,
 
-    -- everything added here needs to be in ON DUPLICATE too!!!
-    COUNT(`player`.`id`) AS `played`,
-    SUM(CAST(`player`.`winner` AS INT)) AS `wins`,
-    SUM(`participant_stats`.`duration`) AS `time_spent`,
-    SUM(`participant_stats`.`kills`) AS `kills`,
-    SUM(`participant_stats`.`deaths`) AS `deaths`,
-    SUM(`participant_stats`.`assists`) AS `assists`,
-    SUM(`participant_stats`.`farm`) AS `farm`,
-    SUM(`participant_stats`.`minion_kills`) AS `minion_kills`,
-    SUM(`participant_stats`.`jungle_kills`) AS `jungle_kills`,
-    SUM(`participant_stats`.`non_jungle_minion_kills`) AS `non_jungle_minion_kills`,
-    SUM(`participant_stats`.`crystal_mine_captures`) AS `crystal_mine_captures`,
-    SUM(`participant_stats`.`gold_mine_captures`) AS `gold_mine_captures`,
-    SUM(`participant_stats`.`kraken_captures`) AS `kraken_captures`,
-    SUM(`participant_stats`.`turret_captures`) AS `turret_captures`,
-    SUM(`participant_stats`.`gold`) AS `gold`,
-    SUM(`participant_stats`.`impact_score`) AS `impact_score`
-FROM `participant` `player`
-JOIN `participant_stats` ON `participant_stats`.`participant_api_id` = `player`.`api_id`
+    -- everything added here needs to be in on DUPLICATE too!!!
+    count(p.id) as played,
+    sum(cast(p.winner as INT)) as wins,
+    sum(p_s.duration) as time_spent,
+    sum(p_s.kills) as kills,
+    sum(p_s.deaths) as deaths,
+    sum(p_s.assists) as assists,
+    sum(p_s.farm) as farm,
+    sum(p_s.minion_kills) as minion_kills,
+    sum(p_s.jungle_kills) as jungle_kills,
+    sum(p_s.non_jungle_minion_kills) as non_jungle_minion_kills,
+    sum(p_s.crystal_mine_captures) as crystal_mine_captures,
+    sum(p_s.gold_mine_captures) as gold_mine_captures,
+    sum(p_s.kraken_captures) as kraken_captures,
+    sum(p_s.turret_captures) as turret_captures,
+    sum(p_s.gold) as gold,
+    sum(p_s.impact_score) as impact_score
+from participant p
+join participant_stats p_s on (p_s.participant_api_id = p.api_id)
+join filter f on ((f.name = 'all' and f.dimension_on = 'global') or f.id in (select gpf.filter_id from global_point_filters gpf where gpf.match_api_id = p.match_api_id))
+join series s on (p_s.created_at between s.start and s.end and s.dimension_on = 'global')
+join hero h on (p.hero_id = h.id or h.name = 'all')
+join role r on (p.role_id = r.id or r.name = 'all')
+join region reg on (p.shard_id = reg.name or reg.name = 'all')
+join game_mode gm on ((p.game_mode_id = gm.id and s.show_in_web = true) or gm.name = 'all')
+join skill_tier st on ((p.skill_tier between st.start and st.end and s.show_in_web = true) or st.name = 'all')  -- no daily
+join build b on ((  -- only per patch global
+    s.show_in_web = true and
+    gm.name = 'all' and
+    st.name = 'all' and
+    reg.name = 'all' and
 
--- dimensions
-JOIN `series` ON `participant_stats`.`created_at` BETWEEN `series`.`start` AND `series`.`end` AND `series`.`dimension_on` = 'global'
-JOIN `hero` `player_hero` ON `player_hero`.`id` = `player`.`hero_id` OR `player_hero`.`name` = 'all'
-JOIN `role` `player_role` ON `player_role`.`id` = `player`.`role_id` OR `player_role`.`name` = 'all'
-JOIN `region` ON `region`.`name` = `player`.`shard_id` OR `region`.`name` = 'all'
+    b.item_1 is not null or p_s.item_grants RLIKE concat(:build_regex_start, b.item_1, ';', b.item_1_count, :build_regex_end) and
+    b.item_2 is not null or p_s.item_grants RLIKE concat(:build_regex_start, b.item_2, ';', b.item_2_count, :build_regex_end) and
+    b.item_3 is not null or p_s.item_grants RLIKE concat(:build_regex_start, b.item_3, ';', b.item_3_count, :build_regex_end) and
+    b.item_4 is not null or p_s.item_grants RLIKE concat(:build_regex_start, b.item_4, ';', b.item_4_count, :build_regex_end) and
+    b.item_5 is not null or p_s.item_grants RLIKE concat(:build_regex_start, b.item_5, ';', b.item_5_count, :build_regex_end) and
+    b.item_6 is not null or p_s.item_grants RLIKE concat(:build_regex_start, b.item_6, ';', b.item_6_count, :build_regex_end) and
+    b.dimension_on = 'global'
+) or b.name = 'all')
 
--- filters
-JOIN `filter` ON (`filter`.`name` = 'all' AND `filter`.`dimension_on` = 'global') OR `filter`.`id` IN (SELECT `global_point_filters`.`filter_id` FROM `global_point_filters` WHERE `global_point_filters`.`match_api_id` = `player`.`match_api_id`)
+where p.api_id in (:participant_api_ids)
 
--- being cheap
-JOIN `game_mode` ON `game_mode`.`id` = `player`.`game_mode_id` OR `game_mode`.`name` = 'all'
-    AND `series`.`show_in_web` = TRUE
-JOIN `skill_tier` ON `player`.`skill_tier` BETWEEN `skill_tier`.`start` AND `skill_tier`.`end` OR `skill_tier`.`name` = 'all'
-    AND `series`.`show_in_web` = TRUE
+group by s.id, f.id, h.id, gm.id, st.id, b.id, r.id, reg.id -- h2.id, r2.id, reg.id
+order by p.id
 
--- builds and counters do not cross 
--- builds
-JOIN `build` ON `build`.`name` = 'all' OR (
-    -- do not cross daily series, game mode, skill tier, region (builds excluded below)
-    `series`.`show_in_web` = TRUE AND
-    `game_mode`.`name` = 'all' AND
-    `skill_tier`.`name` = 'all' AND
-    `region`.`name` = 'all' AND
-
-    `build`.`item_1` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_1`, ';', `build`.`item_1_count`, :build_regex_end) AND
-    `build`.`item_2` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_2`, ';', `build`.`item_2_count`, :build_regex_end) AND
-    `build`.`item_3` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_3`, ';', `build`.`item_3_count`, :build_regex_end) AND
-    `build`.`item_4` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_4`, ';', `build`.`item_4_count`, :build_regex_end) AND
-    `build`.`item_5` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_5`, ';', `build`.`item_5_count`, :build_regex_end) AND
-    `build`.`item_6` IS NOT NULL OR `participant_stats`.`item_grants` RLIKE CONCAT(:build_regex_start, `build`.`item_6`, ';', `build`.`item_6_count`, :build_regex_end) AND
-    `build`.`dimension_on` = 'global'
-)
-
--- counters
-JOIN `participant` `enemy` ON `enemy`.`match_api_id` = `player`.`match_api_id` AND `enemy`.`winner` <> `player`.`winner`
-    -- do not cross daily series, builds, game mode, skill tier, region
-    AND `series`.`show_in_web` = TRUE
-    AND `build`.`name` = 'all'
-    AND `game_mode`.`name` = 'all'
-    AND `skill_tier`.`name` = 'all'
-    AND `region`.`name` = 'all'
-JOIN `hero` `enemy_hero` ON `enemy_hero`.`id` = `enemy`.`hero_id` OR `enemy_hero`.`name` = 'all'
-JOIN `role` `enemy_role` ON `enemy_role`.`id` = `enemy`.`role_id` OR `enemy_role`.`name` = 'all'
-
-WHERE `player`.`api_id` IN (:participant_api_ids)
-
-GROUP BY `series`.`id`, `filter`.`id`, `player_hero`.`id`, `game_mode`.`id`, `skill_tier`.`id`, `build`.`id`, `player_role`.`id`, `enemy_hero`.`id`, `enemy_role`.`id`, `region`.`id`
-ORDER BY `player`.`id`
-
-ON DUPLICATE KEY UPDATE
-`played` = `played` + VALUES(`played`),
-`wins` = `wins` + VALUES(`wins`),
-`time_spent` = `time_spent` + VALUES(`time_spent`),
-`kills` = `kills` + VALUES(`kills`),
-`deaths` = `deaths` + VALUES(`deaths`),
-`assists` = `assists` + VALUES(`assists`),
-`farm` = `farm` + VALUES(`farm`),
-`minion_kills` = `minion_kills` + VALUES(`minion_kills`),
-`jungle_kills` = `jungle_kills` + VALUES(`jungle_kills`),
-`non_jungle_minion_kills` = `non_jungle_minion_kills` + VALUES(`non_jungle_minion_kills`),
-`crystal_mine_captures` = `crystal_mine_captures` + VALUES(`crystal_mine_captures`),
-`gold_mine_captures` = `gold_mine_captures` + VALUES(`gold_mine_captures`),
-`kraken_captures` = `kraken_captures` + VALUES(`kraken_captures`),
-`turret_captures` = `turret_captures` + VALUES(`turret_captures`),
-`gold` = `gold` + VALUES(`gold`),
-`impact_score` = `impact_score` + VALUES(`impact_score`)
+on duplicate key update
+played = played + values(played),
+wins = wins + values(wins),
+time_spent = time_spent + values(time_spent),
+kills = kills + values(kills),
+deaths = deaths + values(deaths),
+assists = assists + values(assists),
+farm = farm + values(farm),
+minion_kills = minion_kills + values(minion_kills),
+jungle_kills = jungle_kills + values(jungle_kills),
+non_jungle_minion_kills = non_jungle_minion_kills + values(non_jungle_minion_kills),
+crystal_mine_captures = crystal_mine_captures + values(crystal_mine_captures),
+gold_mine_captures = gold_mine_captures + values(gold_mine_captures),
+kraken_captures = kraken_captures + values(kraken_captures),
+turret_captures = turret_captures + values(turret_captures),
+gold = gold + values(gold),
+impact_score = impact_score + values(impact_score)
