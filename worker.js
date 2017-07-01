@@ -102,7 +102,11 @@ if (LOGGLY_TOKEN)
     // execute the scripts
     async function crunch() {
         const profiler = logger.startTimer();
-        logger.info("crunching");
+        logger.info("crunching", {
+            players: participants_player.size,
+            teams: teams.size,
+            globals: participants_global.size
+        });
 
         // prevent async issues
         const api_ids_player = [...participants_player],
