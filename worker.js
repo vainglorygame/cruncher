@@ -20,6 +20,7 @@ const amqp = require("amqplib"),
 
 const RABBITMQ_URI = process.env.RABBITMQ_URI,
     DATABASE_URI = process.env.DATABASE_URI,
+    CRUNCH_TABLE = process.env.CRUNCH_TABLE || "global_point",
     QUEUE = process.env.QUEUE || "crunch",
     LOGGLY_TOKEN = process.env.LOGGLY_TOKEN,
     // size of connection pool
@@ -125,6 +126,7 @@ if (LOGGLY_TOKEN)
                 replacements: {
                     build_regex_start: '^([[:digit:]]+;[[:digit:]]+,)*(',
                     build_regex_end: ')+(,[[:digit:]]+;[[:digit:]]+)*$',
+                    crunch_table: CRUNCH_TABLE,
                     participant_api_ids: api_ids_global
                 },
                 type: seq.QueryTypes.UPSERT

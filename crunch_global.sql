@@ -1,4 +1,4 @@
-insert low_priority into global_point
+insert low_priority into :crunch_table
 select
     null,
     now(),
