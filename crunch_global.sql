@@ -1,4 +1,4 @@
-insert low_priority into :crunch_table
+insert low_priority into `global_point`
 select
     null,
     now(),
@@ -45,13 +45,15 @@ join build b on ((  -- only per patch global
     st.name = 'all' and
     reg.name = 'all' and
 
-    (b.item_1 is null or p_s.item_grants RLIKE concat(:build_regex_start, b.item_1, ';', b.item_1_count, :build_regex_end)) and
-    (b.item_2 is null or p_s.item_grants RLIKE concat(:build_regex_start, b.item_2, ';', b.item_2_count, :build_regex_end)) and
-    (b.item_3 is null or p_s.item_grants RLIKE concat(:build_regex_start, b.item_3, ';', b.item_3_count, :build_regex_end)) and
-    (b.item_4 is null or p_s.item_grants RLIKE concat(:build_regex_start, b.item_4, ';', b.item_4_count, :build_regex_end)) and
-    (b.item_5 is null or p_s.item_grants RLIKE concat(:build_regex_start, b.item_5, ';', b.item_5_count, :build_regex_end)) and
-    (b.item_6 is null or p_s.item_grants RLIKE concat(:build_regex_start, b.item_6, ';', b.item_6_count, :build_regex_end)) and
-    b.dimension_on = 'global'
+    (
+        (b.item_1 is null or p_s.item_grants rlike concat(:build_regex_start, b.item_1, ';', b.item_1_count, :build_regex_end)) and
+        (b.item_2 is null or p_s.item_grants rlike concat(:build_regex_start, b.item_2, ';', b.item_2_count, :build_regex_end)) and
+        (b.item_3 is null or p_s.item_grants rlike concat(:build_regex_start, b.item_3, ';', b.item_3_count, :build_regex_end)) and
+        (b.item_4 is null or p_s.item_grants rlike concat(:build_regex_start, b.item_4, ';', b.item_4_count, :build_regex_end)) and
+        (b.item_5 is null or p_s.item_grants rlike concat(:build_regex_start, b.item_5, ';', b.item_5_count, :build_regex_end)) and
+        (b.item_6 is null or p_s.item_grants rlike concat(:build_regex_start, b.item_6, ';', b.item_6_count, :build_regex_end)) and
+        b.dimension_on = 'global'
+    )
 ) or b.name = 'all')
 
 where p.api_id in (:participant_api_ids)

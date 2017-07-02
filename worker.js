@@ -74,7 +74,8 @@ if (LOGGLY_TOKEN)
     // for the `participant_api_id` array
     const player_script = fs.readFileSync("crunch_player.sql", "utf8"),
         team_script = fs.readFileSync("crunch_team.sql", "utf8"),
-        global_script = fs.readFileSync("crunch_global.sql", "utf8");
+        global_script = fs.readFileSync("crunch_global.sql", "utf8")
+                          .replace("`global_point`", CRUNCH_TABLE);
 
     // fill a buffer and execute an SQL on a bigger (> 1o) batch
     const participants_player = new Set(),
@@ -126,7 +127,6 @@ if (LOGGLY_TOKEN)
                 replacements: {
                     build_regex_start: '^([[:digit:]]+;[[:digit:]]+,)*(',
                     build_regex_end: ')+(,[[:digit:]]+;[[:digit:]]+)*$',
-                    crunch_table: CRUNCH_TABLE,
                     participant_api_ids: api_ids_global
                 },
                 type: seq.QueryTypes.UPSERT
