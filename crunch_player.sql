@@ -3,17 +3,18 @@ SELECT
     NULL,
     `participant`.`player_api_id`,
 
+    `series`.`id`,
+    `filter`.`id`,
+    `hero`.`id`,
+    `game_mode`.`id`,
+    `role`.`id`,
+    
     COUNT(`participant`.`id`) AS `played`,
     SUM(CAST(`participant`.`winner` AS INT)) AS `wins`,
     SUM(`duration`) AS `time_spent`,
     
-    `series`.`id`,
-    `role`.`id`,
-    `filter`.`id`,
-    `hero`.`id`,
-    `game_mode`.`id`,
     `participant`.`created_at`,
-    
+
     SUM(`participant_stats`.`kills`) AS `kills`,
     SUM(`participant_stats`.`deaths`) AS `deaths`,
     SUM(`participant_stats`.`assists`) AS `assists`,
