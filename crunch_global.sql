@@ -42,8 +42,7 @@ join skill_tier st on ((p.skill_tier between st.start and st.end and s.show_in_w
 join build b on ((  -- only per patch global
     s.show_in_web = true and
     gm.name = 'all' and
-    st.name = 'all' and
-    reg.name = 'all' and
+    r.name = 'all' and
 
     (
         (b.item_1 is null or p_s.item_grants rlike concat(:build_regex_start, b.item_1, ';', b.item_1_count, :build_regex_end)) and
