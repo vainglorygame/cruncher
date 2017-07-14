@@ -15,8 +15,7 @@ const amqp = require("amqplib"),
     fs = Promise.promisifyAll(require("fs")),
     winston = require("winston"),
     loggly = require("winston-loggly-bulk"),
-    Seq = require("sequelize"),
-    sleep = require("sleep-promise");
+    Seq = require("sequelize");
 
 const RABBITMQ_URI = process.env.RABBITMQ_URI,
     DATABASE_URI = process.env.DATABASE_URI,
@@ -50,25 +49,18 @@ if (LOGGLY_TOKEN)
     });
 
 
-(async () => {
-    let seq, rabbit, ch;
-
+amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
     // connect to rabbit & db
-    while (true) {
-        try {
-            seq = new Seq(DATABASE_URI, {
-                logging: false,
-                max: MAXCONNS
-            }),
-            rabbit = await amqp.connect(RABBITMQ_URI, { heartbeat: 320 }),
-            ch = await rabbit.createChannel();
-            await ch.assertQueue(QUEUE, {durable: true});
-            break;
-        } catch (err) {
-            logger.error("Error connecting", err);
-            await sleep(5000);
-        }
-    }
+    const seq = new Seq(DATABASE_URI, {
+        logging: false,
+        max: MAXCONNS
+    });
+
+    process.once("SIGINT", rabbit.close.bind(rabbit));
+
+    const ch = await rabbit.createChannel();
+    await ch.assertQueue(QUEUE, { durable: true });
+    await ch.assertQueue(QUEUE + "_failed", { durable: true });
 
     // load update SQL scripts; scripts use sequelize replacements
     // for the `participant_api_id` array
@@ -88,7 +80,7 @@ if (LOGGLY_TOKEN)
     // set maximum allowed number of unacked msgs
     // TODO maybe split queues by type
     await ch.prefetch(BATCHSIZE);
-    ch.consume(QUEUE, (msg) => {
+    ch.consume(QUEUE, async (msg) => {
         const api_id = msg.content.toString();
         if (msg.properties.type == "global")
             participants_global.add(api_id);
@@ -98,8 +90,39 @@ if (LOGGLY_TOKEN)
             teams.add(api_id);
         buffer.add(msg);
         if (timeout == undefined) timeout = setTimeout(crunch, LOAD_TIMEOUT*1000);
-        if (buffer.size >= BATCHSIZE) crunch();
+        if (buffer.size >= BATCHSIZE) tryCrunch();
     }, { noAck: false });
+
+    // wrap crunch() in message handler
+    async function tryCrunch() {
+        const msgs = new Set(buffer);
+        try {
+            await crunch();
+        } catch (err) {
+            // log, move to failed queue, NACK
+            logger.error(err);
+            await Promise.map(msgs, async (m) => {
+                await ch.sendToQueue(QUEUE + "_failed", msg.content, {
+                    persistent: true,
+                    headers: msg.properties.headers
+                });
+                await msg.nack(false, false);
+            });
+            return;
+        }
+
+        await Promise.map(msgs, async (m) => await ch.ack(m));
+        // notify web
+        // TODO notify for player too
+        await ch.publish("amq.topic", "global", new Buffer("points_update"));
+
+        if (SLOWMODE > 0) {
+            logger.info("slowmode active, sleeping…", { wait: SLOWMODE });
+            await sleep(SLOWMODE * 1000);
+        }
+        // ack
+        await Promise.map(msgs, async (m) => await ch.ack(m));
+    }
 
     // execute the scripts
     async function crunch() {
@@ -113,8 +136,7 @@ if (LOGGLY_TOKEN)
         // prevent async issues
         const api_ids_player = [...participants_player],
             team_ids = [...teams],
-            api_ids_global = [...participants_global],
-            msgs = new Set(buffer);
+            api_ids_global = [...participants_global];
         participants_global.clear();
         teams.clear();
         participants_player.clear();
@@ -144,23 +166,14 @@ if (LOGGLY_TOKEN)
                 replacements: { participant_api_ids: api_ids_player },
                 type: seq.QueryTypes.UPSERT
             });
-
-        // notify web
-        // TODO notify for player too
-        await ch.publish("amq.topic", "global", new Buffer("points_update"));
-
-        if (SLOWMODE > 0) {
-            logger.info("slowmode active, sleeping…", { wait: SLOWMODE });
-            await sleep(SLOWMODE * 1000);
-        }
-        // ack
-        await Promise.map(msgs, async (m) => await ch.ack(m));
-
-        profiler.done("crunched", { size: msgs.size });
+        profiler.done("crunched", {
+            size: api_ids_global.length + api_ids_player.length + team_ids.length
+        });
     }
-})();
+});
 
-process.on("unhandledRejection", function(reason, promise) {
+process.on("unhandledRejection", (err) => {
     logger.error(reason);
+    process.exit(1);  // fail hard and die
 });
 
