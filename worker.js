@@ -89,15 +89,27 @@ amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
         if (msg.properties.type == "team")
             teams.add(api_id);
         buffer.add(msg);
-        if (timeout == undefined) timeout = setTimeout(crunch, LOAD_TIMEOUT*1000);
-        if (buffer.size >= BATCHSIZE) tryCrunch();
+        if (timeout == undefined) timeout = setTimeout(tryCrunch, LOAD_TIMEOUT*1000);
+        if (buffer.size >= BATCHSIZE) await tryCrunch();
     }, { noAck: false });
 
     // wrap crunch() in message handler
     async function tryCrunch() {
-        const msgs = new Set(buffer);
+        const msgs = new Set(buffer),
+            api_ids_global = [...participants_global],
+            api_ids_player = [...participants_player],
+            team_ids = [...teams];
+
+        buffer.clear();
+        clearTimeout(timeout);
+        timeout = undefined;
+
+        participants_global.clear();
+        participants_player.clear();
+        teams.clear();
+
         try {
-            await crunch();
+            await crunch(api_ids_global, api_ids_player, team_ids);
         } catch (err) {
             // log, move to failed queue, NACK
             logger.error(err);
@@ -120,29 +132,16 @@ amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
             logger.info("slowmode active, sleeping…", { wait: SLOWMODE });
             await sleep(SLOWMODE * 1000);
         }
-        // ack
-        await Promise.map(msgs, async (m) => await ch.ack(m));
     }
 
     // execute the scripts
-    async function crunch() {
+    async function crunch(api_ids_global, api_ids_player, team_ids) {
         const profiler = logger.startTimer();
         logger.info("crunching", {
-            players: participants_player.size,
-            teams: teams.size,
-            globals: participants_global.size
+            globals: api_ids_global.length,
+            players: api_ids_player.length,
+            teams: team_ids.length
         });
-
-        // prevent async issues
-        const api_ids_player = [...participants_player],
-            team_ids = [...teams],
-            api_ids_global = [...participants_global];
-        participants_global.clear();
-        teams.clear();
-        participants_player.clear();
-        buffer.clear();
-        clearTimeout(timeout);
-        timeout = undefined;
 
         if (api_ids_global.length > 0)
             await seq.query(global_script, {
@@ -153,19 +152,19 @@ amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
                 },
                 type: seq.QueryTypes.UPSERT
             });
-        if (team_ids.length > 0) {
+        if (team_ids.length > 0)
             await Promise.each(team_ids, async (tid) =>
                 await seq.query(team_script, {
                     replacements: { team_id: tid },
                     type: seq.QueryTypes.UPDATE
                 })
             );
-        }
         if (api_ids_player.length > 0)
             await seq.query(player_script, {
                 replacements: { participant_api_ids: api_ids_player },
                 type: seq.QueryTypes.UPSERT
             });
+
         profiler.done("crunched", {
             size: api_ids_global.length + api_ids_player.length + team_ids.length
         });
@@ -173,7 +172,6 @@ amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
 });
 
 process.on("unhandledRejection", (err) => {
-    logger.error(reason);
+    logger.error(err);
     process.exit(1);  // fail hard and die
 });
-
