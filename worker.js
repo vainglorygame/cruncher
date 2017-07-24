@@ -19,8 +19,8 @@ const amqp = require("amqplib"),
 
 const RABBITMQ_URI = process.env.RABBITMQ_URI,
     DATABASE_URI = process.env.DATABASE_URI,
-    CRUNCH_TABLE = process.env.CRUNCH_TABLE || "global_point",
     QUEUE = process.env.QUEUE || "crunch",
+    SCRIPT = process.env.SCRIPT || "crunch_global.sql",
     LOGGLY_TOKEN = process.env.LOGGLY_TOKEN,
     // size of connection pool
     MAXCONNS = parseInt(process.env.MAXCONNS) || 3,
@@ -64,30 +64,18 @@ amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
 
     // load update SQL scripts; scripts use sequelize replacements
     // for the `participant_api_id` array
-    const player_script = fs.readFileSync("crunch_player.sql", "utf8"),
-        team_script = fs.readFileSync("crunch_team.sql", "utf8"),
-        global_script = fs.readFileSync("crunch_global.sql", "utf8")
-                          .replace("`global_point`", CRUNCH_TABLE);
+    const script = fs.readFileSync(SCRIPT, "utf8");
 
     // fill a buffer and execute an SQL on a bigger (> 1o) batch
-    const participants_player = new Set(),
-        teams = new Set(),
-        participants_global = new Set(),
+    const participants = new Set(),
         // store the msgs that should be ACKed
         buffer = new Set();
     let timeout = undefined;
 
     // set maximum allowed number of unacked msgs
-    // TODO maybe split queues by type
     await ch.prefetch(BATCHSIZE);
     ch.consume(QUEUE, async (msg) => {
-        const api_id = msg.content.toString();
-        if (msg.properties.type == "global")
-            participants_global.add(api_id);
-        if (msg.properties.type == "player")
-            participants_player.add(api_id);
-        if (msg.properties.type == "team")
-            teams.add(api_id);
+        participants.add(msg.content.toString());
         buffer.add(msg);
         if (timeout == undefined) timeout = setTimeout(tryCrunch, LOAD_TIMEOUT*1000);
         if (buffer.size >= BATCHSIZE) await tryCrunch();
@@ -96,29 +84,25 @@ amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
     // wrap crunch() in message handler
     async function tryCrunch() {
         const msgs = new Set(buffer),
-            api_ids_global = [...participants_global],
-            api_ids_player = [...participants_player],
-            team_ids = [...teams];
+            api_ids = [...participants];
 
         buffer.clear();
         clearTimeout(timeout);
         timeout = undefined;
 
-        participants_global.clear();
-        participants_player.clear();
-        teams.clear();
+        participants.clear();
 
         try {
-            await crunch(api_ids_global, api_ids_player, team_ids);
+            await crunch(api_ids);
         } catch (err) {
             // log, move to failed queue, NACK
             logger.error(err);
             await Promise.map(msgs, async (m) => {
-                await ch.sendToQueue(QUEUE + "_failed", msg.content, {
+                await ch.sendToQueue(QUEUE + "_failed", m.content, {
                     persistent: true,
-                    headers: msg.properties.headers
+                    headers: m.properties.headers
                 });
-                await msg.nack(false, false);
+                await ch.nack(m, false, false);
             });
             return;
         }
@@ -126,6 +110,7 @@ amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
         await Promise.map(msgs, async (m) => await ch.ack(m));
         // notify web
         // TODO notify for player too
+        // TODO fix these
         await ch.publish("amq.topic", "global", new Buffer("points_update"));
 
         if (SLOWMODE > 0) {
@@ -134,40 +119,21 @@ amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
         }
     }
 
-    // execute the scripts
-    async function crunch(api_ids_global, api_ids_player, team_ids) {
+    // execute the script
+    async function crunch(api_ids) {
         const profiler = logger.startTimer();
-        logger.info("crunching", {
-            globals: api_ids_global.length,
-            players: api_ids_player.length,
-            teams: team_ids.length
+        logger.info("crunching", { size: api_ids.length });
+
+        await seq.query(script, {
+            replacements: {
+                build_regex_start: '^([[:digit:]]+;[[:digit:]]+,)*(',
+                build_regex_end: ')+(,[[:digit:]]+;[[:digit:]]+)*$',
+                participant_api_ids: api_ids
+            },
+            type: seq.QueryTypes.UPSERT
         });
 
-        if (api_ids_global.length > 0)
-            await seq.query(global_script, {
-                replacements: {
-                    build_regex_start: '^([[:digit:]]+;[[:digit:]]+,)*(',
-                    build_regex_end: ')+(,[[:digit:]]+;[[:digit:]]+)*$',
-                    participant_api_ids: api_ids_global
-                },
-                type: seq.QueryTypes.UPSERT
-            });
-        if (team_ids.length > 0)
-            await Promise.each(team_ids, async (tid) =>
-                await seq.query(team_script, {
-                    replacements: { team_id: tid },
-                    type: seq.QueryTypes.UPDATE
-                })
-            );
-        if (api_ids_player.length > 0)
-            await seq.query(player_script, {
-                replacements: { participant_api_ids: api_ids_player },
-                type: seq.QueryTypes.UPSERT
-            });
-
-        profiler.done("crunched", {
-            size: api_ids_global.length + api_ids_player.length + team_ids.length
-        });
+        profiler.done("crunched", { size: api_ids.length });
     }
 });
 
