@@ -16,7 +16,8 @@ select
     sum(p_s.duration) as time_spent,
 
     -- special player_point facts
-    max(p.trueskill_mu-p.trueskill_sigma) as trueskill,
+    max(p.trueskill_mu-p.trueskill_sigma) as trueskill_max,
+    sum(p.trueskill_delta) as trueskill_delta,
     sum(p.trueskill_mu) as trueskill_mu,
     sum(p.trueskill_sigma) as trueskill_sigma,
     0 as elo,
@@ -51,10 +52,11 @@ order by p.id
 on duplicate key update
 played = played + values(played),
 wins = wins + values(wins),
+trueskill_max = case when values(trueskill_max) > trueskill_max then values(trueskill_max) else trueskill_max end,
+trueskill_delta = trueskill_delta + values(trueskill_delta),
+trueskill_mu = trueskill_mu + values(trueskill_mu),
+trueskill_sigma = trueskill_sigma + values(trueskill_sigma),
 time_spent = time_spent + values(time_spent),
-trueskill = case when values(trueskill) > trueskill then values(trueskill) else trueskill end,
-trueskill_mu =  case when values(trueskill_mu) > trueskill_mu then values(trueskill_mu) else trueskill_mu end,
-trueskill_sigma = case when values(trueskill_sigma) > trueskill_sigma then values(trueskill_sigma) else trueskill_sigma end,
 elo = elo + values(elo),
 kills = kills + values(kills),
 deaths = deaths + values(deaths),

@@ -16,6 +16,7 @@ select
     -- everything added here needs to be in on DUPLICATE too!!!
     count(p.id) as played,
     sum(cast(p.winner as INT)) as wins,
+    sum(p.trueskill_delta) as trueskill_delta,
     sum(p_s.duration) as time_spent,
     sum(p_s.kills) as kills,
     sum(p_s.deaths) as deaths,
@@ -63,6 +64,7 @@ order by p.id
 on duplicate key update
 played = played + values(played),
 wins = wins + values(wins),
+trueskill_delta = trueskill_delta + values(trueskill_delta),
 time_spent = time_spent + values(time_spent),
 kills = kills + values(kills),
 deaths = deaths + values(deaths),
