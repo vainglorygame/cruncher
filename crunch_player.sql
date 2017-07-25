@@ -9,15 +9,16 @@ select
     gm.id as game_mode_id,
     r.id as role_id,
 
+
     -- everything added here needs to be in on DUPLICATE too!!!
     count(p.id) as played,
     sum(cast(p.winner as INT)) as wins,
     sum(p_s.duration) as time_spent,
 
     -- special player_point facts
-    max(p.trueskill) as trueskill,
-    sum(p.trueskill_mu) as trueskill_mu,
-    sum(p.trueskill_sigma) as trueskill_sigma,
+    (p.trueskill_mu - p.trueskill_sigma) as trueskill,
+    p.trueskill_mu as trueskill_mu,
+    p.trueskill_sigma as trueskill_sigma,
     0 as elo,
 
     sum(p_s.kills) as kills,
@@ -52,8 +53,8 @@ played = played + values(played),
 wins = wins + values(wins),
 time_spent = time_spent + values(time_spent),
 trueskill = case when values(trueskill) > trueskill then values(trueskill) else trueskill end,
-trueskill_mu = trueskill_mu + values(trueskill_mu),
-trueskill_sigma = trueskill_sigma + values(trueskill_sigma),
+trueskill_mu =  case when values(trueskill_mu) > trueskill_mu then values(trueskill_mu) else trueskill_mu end,
+trueskill_sigma = case when values(trueskill_sigma) > trueskill_sigma then values(trueskill_sigma) else trueskill_sigma end,
 elo = elo + values(elo),
 kills = kills + values(kills),
 deaths = deaths + values(deaths),
