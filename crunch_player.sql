@@ -15,7 +15,7 @@ select
     sum(p_s.duration) as time_spent,
 
     -- special player_point facts
-    max(p.trueskill) as trueskill,
+    max(p.trueskill_mu-p.trueskill_sigma) as trueskill,
     sum(p.trueskill_mu) as trueskill_mu,
     sum(p.trueskill_sigma) as trueskill_sigma,
     0 as elo,
