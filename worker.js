@@ -15,6 +15,7 @@ const amqp = require("amqplib"),
     fs = Promise.promisifyAll(require("fs")),
     winston = require("winston"),
     loggly = require("winston-loggly-bulk"),
+    sleep = require("sleep-promise"),
     Seq = require("sequelize");
 
 const RABBITMQ_URI = process.env.RABBITMQ_URI,
