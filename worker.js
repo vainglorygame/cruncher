@@ -93,6 +93,11 @@ amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
 
         participants.clear();
 
+        if (SLOWMODE > 0) {
+            logger.info("slowmode active, sleeping…", { wait: SLOWMODE });
+            await sleep(SLOWMODE * 1000);
+        }
+
         try {
             await crunch(api_ids);
         } catch (err) {
@@ -113,11 +118,6 @@ amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
         // TODO notify for player too
         // TODO fix these
         await ch.publish("amq.topic", "global", new Buffer("points_update"));
-
-        if (SLOWMODE > 0) {
-            logger.info("slowmode active, sleeping…", { wait: SLOWMODE });
-            await sleep(SLOWMODE * 1000);
-        }
     }
 
     // execute the script
