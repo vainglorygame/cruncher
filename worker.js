@@ -29,7 +29,7 @@ const RABBITMQ_URI = process.env.RABBITMQ_URI,
     BATCHSIZE = parseInt(process.env.BATCHSIZE) || 1000,
     LOAD_TIMEOUT = parseInt(process.env.LOAD_TIMEOUT) || 5,  // s
     // wait time before next batch
-    SLOWMODE = parseInt(process.env.SLOWMODE) || 0;  // s
+    SLOWMODE = parseFloat(process.env.SLOWMODE) || 0;  // s
 
 const logger = new (winston.Logger)({
         transports: [
