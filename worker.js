@@ -63,6 +63,10 @@ amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
     await ch.assertQueue(QUEUE, { durable: true });
     await ch.assertQueue(QUEUE + "_failed", { durable: true });
 
+    logger.info("configuration", {
+        SCRIPT, QUEUE, BATCHSIZE, MAXCONNS, LOAD_TIMEOUT
+    });
+
     // load update SQL scripts; scripts use sequelize replacements
     // for the `participant_api_id` array
     const script = fs.readFileSync(SCRIPT, "utf8");
