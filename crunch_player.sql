@@ -1,7 +1,7 @@
 insert low_priority into `player_point`
 select
     null,
-    p.created_at,
+    p.created_at as updated_at,
     p.player_api_id,
     s.id as series_id,
     f.id as filter_id,
@@ -50,6 +50,7 @@ group by p.player_api_id, s.id, f.id, h.id, gm.id, r.id
 order by p.id
 
 on duplicate key update
+updated_at = case when values(updated_at) > updated_a then values(updated_at) else updated_at end,
 played = played + values(played),
 wins = wins + values(wins),
 trueskill_max = case when values(trueskill_max) > trueskill_max then values(trueskill_max) else trueskill_max end,
