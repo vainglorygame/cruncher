@@ -120,7 +120,7 @@ amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
         await Promise.map(msgs, async (m) => await ch.ack(m));
         // notify web
         // TODO notify for player too
-        await Promise.map(api_ids, (id) => {
+        await Promise.map(api_ids, async (id) => {
             await ch.publish("amq.topic",
                 "crunch." + id,
                 new Buffer("points_update"));
