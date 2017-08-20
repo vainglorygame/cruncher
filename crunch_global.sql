@@ -31,9 +31,14 @@ select
     sum(p_s.turret_captures) as turret_captures,
     sum(p_s.gold) as gold,
     sum(p_s.impact_score) as impact_score,
-    sum(0) as surrender
+    sum(p_i.surrender) as surrender,
+    _p_i_items_insert,
+    _p_i_item_grants_insert,
+    _p_i_item_uses_insert,
+    _p_i_item_sells_insert
 from participant p
 join participant_stats p_s on (p_s.participant_api_id = p.api_id)
+join participant_items p_i on (p_i.participant_api_id = p.api_id)
 join filter f on (f.dimension_on = 'global' and (f.name = 'all' or f.id in (select gpf.filter_id from global_point_filters gpf where gpf.match_api_id = p.match_api_id)))
 join series s on (p_s.created_at between s.start and s.end and s.dimension_on = 'global')
 join hero h on (p.hero_id = h.id or h.name = 'all')
@@ -80,4 +85,8 @@ kraken_captures = kraken_captures + values(kraken_captures),
 turret_captures = turret_captures + values(turret_captures),
 gold = gold + values(gold),
 impact_score = impact_score + values(impact_score),
-surrender = surrender + values(surrender)
+surrender = surrender + values(surrender),
+_p_i_items_update,
+_p_i_item_grants_update,
+_p_i_item_uses_update,
+_p_i_item_sells_update

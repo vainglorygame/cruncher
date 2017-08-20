@@ -63,13 +63,87 @@ amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
     await ch.assertQueue(QUEUE, { durable: true });
     await ch.assertQueue(QUEUE + "_failed", { durable: true });
 
+    const model = require("../orm/model")(seq, Seq);
+
     logger.info("configuration", {
         SCRIPT, QUEUE, BATCHSIZE, MAXCONNS, LOAD_TIMEOUT
     });
 
     // load update SQL scripts; scripts use sequelize replacements
     // for the `participant_api_id` array
-    const script = fs.readFileSync(SCRIPT, "utf8");
+    let script = fs.readFileSync(SCRIPT, "utf8");
+
+    // array of all item ids
+    const items = (await model.Item.findAll()).map((i) => i.id);
+    // returns an SQL snippet like this:
+    /* column_create(
+     *      '1', column_get(p_i.item_grants, '1'),
+     *      …
+     *  )
+     */
+    const dynamic_sql = (doCreate, tableName, columnName) => {
+        if (doCreate) {  // insert
+            return `
+column_create(` +
+        (items.map((i) =>
+            // create an array of `columnName, col_get($col, columnName)`
+`   '${i}',
+    coalesce(column_get(${tableName}.${columnName}, '${i}' as int), 0)`
+        ).join(",\n")) + `
+) as ${columnName}`;
+        } else {
+            return `
+${columnName} = column_create(` +
+        (items.map((i) =>
+    // create an array of
+    // `columnName, col_get($col, columnName) + col_get(values($col, columnName))`
+`   '${i}',
+    coalesce(column_get(${columnName}, '${i}' as int), 0)
+    +
+    coalesce(column_get(values(${columnName}), '${i}' as int), 0)`
+        ).join(",\n")) + `
+)`;
+        }
+    };
+    // generate
+    const
+        p_i_items_insert = dynamic_sql(true, 'p_i', 'items'),
+        p_i_item_grants_insert = dynamic_sql(true, 'p_i', 'item_grants'),
+        p_i_item_uses_insert = dynamic_sql(true, 'p_i', 'item_uses'),
+        p_i_item_sells_insert = dynamic_sql(true, 'p_i', 'item_sells'),
+        p_i_items_update = dynamic_sql(false, 'p_i', 'items'),
+        p_i_item_grants_update = dynamic_sql(false, 'p_i', 'item_grants'),
+        p_i_item_uses_update = dynamic_sql(false, 'p_i', 'item_uses'),
+        p_i_item_sells_update = dynamic_sql(false, 'p_i', 'item_sells'),
+        ph_items_insert = dynamic_sql(true, 'ph', 'items'),
+        ph_item_grants_insert = dynamic_sql(true, 'ph', 'item_grants'),
+        ph_item_uses_insert = dynamic_sql(true, 'ph', 'item_uses'),
+        ph_item_sells_insert = dynamic_sql(true, 'ph', 'item_sells'),
+        ph_items_update = dynamic_sql(false, 'ph', 'items'),
+        ph_item_grants_update = dynamic_sql(false, 'ph', 'item_grants'),
+        ph_item_uses_update = dynamic_sql(false, 'ph', 'item_uses'),
+        ph_item_sells_update = dynamic_sql(false, 'ph', 'item_sells')
+    ;
+
+    // replace stubs
+    Object.entries({
+        p_i_items_insert,
+        p_i_item_grants_insert,
+        p_i_item_uses_insert,
+        p_i_item_sells_insert,
+        p_i_items_update,
+        p_i_item_grants_update,
+        p_i_item_uses_update,
+        p_i_item_sells_update,
+        ph_items_insert,
+        ph_item_grants_insert,
+        ph_item_uses_insert,
+        ph_item_sells_insert,
+        ph_items_update,
+        ph_item_grants_update,
+        ph_item_uses_update,
+        ph_item_sells_update,
+    }).forEach(([key, value]) => script = script.replace('_' + key, value));
 
     // fill a buffer and execute an SQL on a bigger (> 1o) batch
     const participants = new Set(),

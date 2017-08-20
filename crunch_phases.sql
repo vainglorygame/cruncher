@@ -49,10 +49,10 @@ select
     sum(ability_c_level),
     sum(hero_level),
 
-    0 as kda_ratio,
-    0 as kill_participation,
-    0 as cs_per_min,
-    0 as kills_per_min
+    _ph_items_insert,
+    _ph_item_grants_insert,
+    _ph_item_uses_insert,
+    _ph_item_sells_insert
 from participant_phases ph
 join participant p on ph.participant_api_id = p.api_id
 join filter f on (f.dimension_on = 'global' and (f.name = 'all' or f.id in (select gpf.filter_id from global_point_filters gpf where gpf.match_api_id = p.match_api_id)))
@@ -100,4 +100,8 @@ dmg_rcvd_true_others = dmg_rcvd_true_others + values(dmg_rcvd_true_others),
 ability_a_level = ability_a_level + values(ability_a_level),
 ability_b_level = ability_b_level + values(ability_b_level),
 ability_c_level = ability_c_level + values(ability_c_level),
-hero_level = hero_level + values(hero_level)
+hero_level = hero_level + values(hero_level),
+_ph_items_update,
+_ph_item_grants_update,
+_ph_item_uses_update,
+_ph_item_sells_update
