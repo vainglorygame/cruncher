@@ -51,8 +51,26 @@ select
 
     _ph_items_insert,
     _ph_item_grants_insert,
+    _ph_item_sells_insert,
+
+    sum(ability_a_use),
+    sum(ability_b_use),
+    sum(ability_c_use),
+    sum(ability_a_damage_true),
+    sum(ability_a_damage_dealt),
+    sum(ability_b_damage_true),
+    sum(ability_b_damage_dealt),
+    sum(ability_c_damage_true),
+    sum(ability_c_damage_dealt),
+    sum(ability_perk_damage_true),
+    sum(ability_perk_damage_dealt),
+    sum(ability_aa_damage_true),
+    sum(ability_aa_damage_dealt),
+    sum(ability_aacrit_damage_true),
+    sum(ability_aacrit_damage_dealt),
+
     _ph_item_uses_insert,
-    _ph_item_sells_insert
+    '' as player_damage
 from participant_phases ph
 join participant p on ph.participant_api_id = p.api_id
 join filter f on (f.dimension_on = 'global' and (f.name = 'all' or f.id in (select gpf.filter_id from global_point_filters gpf where gpf.match_api_id = p.match_api_id)))
@@ -103,5 +121,20 @@ ability_c_level = ability_c_level + values(ability_c_level),
 hero_level = hero_level + values(hero_level),
 _ph_items_update,
 _ph_item_grants_update,
-_ph_item_uses_update,
-_ph_item_sells_update
+_ph_item_sells_update,
+ability_a_use = ability_a_use + values(ability__a_use),
+ability_b_use = ability_b_use + values(ability__b_use),
+ability_c_use = ability_c_use + values(ability__c_use),
+ability_a_damage_true = ability_a_damage_true + values(ability__a_damage_true),
+ability_a_damage_dealt = ability_a_damage_dealt + values(ability__a_damage_dealt),
+ability_b_damage_true = ability_b_damage_true + values(ability__b_damage_true),
+ability_b_damage_dealt = ability_b_damage_dealt + values(ability__b_damage_dealt),
+ability_c_damage_true = ability_c_damage_true + values(ability__c_damage_true),
+ability_c_damage_dealt = ability_c_damage_dealt + values(ability__c_damage_dealt),
+ability_perk_damage_true = ability_perk_damage_true + values(ability__perk_damage_true),
+ability_perk_damage_dealt = ability_perk_damage_dealt + values(ability__perk_damage_dealt),
+ability_aa_damage_true = ability_aa_damage_true + values(ability__aa_damage_true),
+ability_aa_damage_dealt = ability_aa_damage_dealt + values(ability__aa_damage_dealt),
+ability_aacrit_damage_true = ability_aacrit_damage_true + values(ability__aacrit_damage_true),
+ability_aacrit_damage_dealt = ability_aacrit_damage_dealt + values(ability__aacrit_damage_dealt),
+_ph_item_uses_update
