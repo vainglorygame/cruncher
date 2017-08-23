@@ -193,11 +193,12 @@ ${columnName} = column_create(` +
 
         await Promise.map(msgs, async (m) => await ch.ack(m));
         // notify web
-        // TODO notify for player too
-        await Promise.map(api_ids, async (id) => {
-            await ch.publish("amq.topic",
-                "crunch." + id,
-                new Buffer("points_update"));
+        await Promise.map(msgs, async (m) => {
+            if (m.properties.headers.notify)
+                await ch.publish("amq.topic",
+                    m.properties.headers.notify,
+                    new Buffer("crunch_update")
+                );
         });
     }
 
