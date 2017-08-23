@@ -53,7 +53,7 @@ if (LOGGLY_TOKEN)
 amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
     // connect to rabbit & db
     const seq = new Seq(DATABASE_URI, {
-        logging: false,
+        //logging: false,
         max: MAXCONNS
     });
 
@@ -73,76 +73,42 @@ amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
     // for the `participant_api_id` array
     let script = fs.readFileSync(SCRIPT, "utf8");
 
-    // array of all item ids
-    const items = (await model.Item.findAll()).map((i) => i.id);
+    // array of all consumable ids
+    const active_items = (await model.Item.findAll({
+        where: { is_activable: true }
+    })).map((i) => i.id);
     // returns an SQL snippet like this:
-    /* column_create(
-     *      '1', column_get(p_i.item_grants, '1'),
-     *      …
-     *  )
+    /*      sum(column_get(p_i.item_grants, '14')) as item_014_use
+     * or
+     *      item_014_use = item_014_use + values(item_014_use)
      */
-    const dynamic_sql = (doCreate, tableName, columnName) => {
+    const dynamic_sql = (doCreate, tableName) => {
+        const pad = (i) => i.toString().padStart(3, "0");
         if (doCreate) {  // insert
-            return `
-column_create(` +
-        (items.map((i) =>
-            // create an array of `columnName, col_get($col, columnName)`
-`   '${i}',
-    coalesce(column_get(${tableName}.${columnName}, '${i}' as int), 0)`
-        ).join(",\n")) + `
-) as ${columnName}`;
+            return active_items.map((i) =>
+                `sum(column_get(${tableName}.item_uses, '${i}' as int)) ` +
+                    `as item_${pad(i)}_use`
+            ).join(",\n");
         } else {
-            return `
-${columnName} = column_create(` +
-        (items.map((i) =>
-    // create an array of
-    // `columnName, col_get($col, columnName) + col_get(values($col, columnName))`
-`   '${i}',
-    coalesce(column_get(${columnName}, '${i}' as int), 0)
-    +
-    coalesce(column_get(values(${columnName}), '${i}' as int), 0)`
-        ).join(",\n")) + `
-)`;
+            return active_items.map((i) =>
+                `item_${pad(i)}_use = item_${pad(i)}_use + values(item_${pad(i)}_use)`
+            ).join(",\n");
         }
     };
     // generate
     const
-        p_i_items_insert = dynamic_sql(true, 'p_i', 'items'),
-        p_i_item_grants_insert = dynamic_sql(true, 'p_i', 'item_grants'),
-        p_i_item_uses_insert = dynamic_sql(true, 'p_i', 'item_uses'),
-        p_i_item_sells_insert = dynamic_sql(true, 'p_i', 'item_sells'),
-        p_i_items_update = dynamic_sql(false, 'p_i', 'items'),
-        p_i_item_grants_update = dynamic_sql(false, 'p_i', 'item_grants'),
-        p_i_item_uses_update = dynamic_sql(false, 'p_i', 'item_uses'),
-        p_i_item_sells_update = dynamic_sql(false, 'p_i', 'item_sells'),
-        ph_items_insert = dynamic_sql(true, 'ph', 'items'),
-        ph_item_grants_insert = dynamic_sql(true, 'ph', 'item_grants'),
-        ph_item_uses_insert = dynamic_sql(true, 'ph', 'item_uses'),
-        ph_item_sells_insert = dynamic_sql(true, 'ph', 'item_sells'),
-        ph_items_update = dynamic_sql(false, 'ph', 'items'),
-        ph_item_grants_update = dynamic_sql(false, 'ph', 'item_grants'),
-        ph_item_uses_update = dynamic_sql(false, 'ph', 'item_uses'),
-        ph_item_sells_update = dynamic_sql(false, 'ph', 'item_sells')
+        p_i_item_uses_insert = dynamic_sql(true, 'p_i'),
+        p_i_item_uses_update = dynamic_sql(false, 'p_i'),
+        ph_item_uses_insert = dynamic_sql(true, 'ph'),
+        ph_item_uses_update = dynamic_sql(false, 'ph')
     ;
 
     // replace stubs
     Object.entries({
-        p_i_items_insert,
-        p_i_item_grants_insert,
         p_i_item_uses_insert,
-        p_i_item_sells_insert,
-        p_i_items_update,
-        p_i_item_grants_update,
         p_i_item_uses_update,
-        p_i_item_sells_update,
-        ph_items_insert,
-        ph_item_grants_insert,
         ph_item_uses_insert,
-        ph_item_sells_insert,
-        ph_items_update,
-        ph_item_grants_update,
-        ph_item_uses_update,
-        ph_item_sells_update,
+        ph_item_uses_update
     }).forEach(([key, value]) => script = script.replace('_' + key, value));
 
     // fill a buffer and execute an SQL on a bigger (> 1o) batch

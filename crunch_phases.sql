@@ -48,11 +48,6 @@ select
     sum(ability_b_level),
     sum(ability_c_level),
     sum(hero_level),
-
-    _ph_items_insert,
-    _ph_item_grants_insert,
-    _ph_item_sells_insert,
-
     sum(ability_a_use),
     sum(ability_b_use),
     sum(ability_c_use),
@@ -68,9 +63,7 @@ select
     sum(ability_aa_damage_dealt),
     sum(ability_aacrit_damage_true),
     sum(ability_aacrit_damage_dealt),
-
-    _ph_item_uses_insert,
-    '' as player_damage
+    _ph_item_uses_insert
 from participant_phases ph
 join participant p on ph.participant_api_id = p.api_id
 join filter f on (f.dimension_on = 'global' and (f.name = 'all' or f.id in (select gpf.filter_id from global_point_filters gpf where gpf.match_api_id = p.match_api_id)))
@@ -119,9 +112,6 @@ ability_a_level = ability_a_level + values(ability_a_level),
 ability_b_level = ability_b_level + values(ability_b_level),
 ability_c_level = ability_c_level + values(ability_c_level),
 hero_level = hero_level + values(hero_level),
-_ph_items_update,
-_ph_item_grants_update,
-_ph_item_sells_update,
 ability_a_use = ability_a_use + values(ability__a_use),
 ability_b_use = ability_b_use + values(ability__b_use),
 ability_c_use = ability_c_use + values(ability__c_use),
