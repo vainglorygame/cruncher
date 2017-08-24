@@ -53,7 +53,7 @@ if (LOGGLY_TOKEN)
 amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
     // connect to rabbit & db
     const seq = new Seq(DATABASE_URI, {
-        //logging: false,
+        logging: false,
         max: MAXCONNS
     });
 
