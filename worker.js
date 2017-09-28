@@ -80,6 +80,15 @@ amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
     // set maximum allowed number of unacked msgs
     await ch.prefetch(BATCHSIZE);
     ch.consume(QUEUE, async (msg) => {
+        if (msg.content.length > 1024) {
+            // thx NodeJS for implementing `new Buffer(size)`
+            // Sometimes I fuck up during message sending
+            // and forget a `id.toString()`, creating huge blobs of zeros,
+            // which makes Sequelize panic because the packets are 2MB.
+            // May god forgive me for deploying debug code…
+            await ch.nack(m, false, false);
+        }
+
         participants.add(msg.content.toString());
         buffer.add(msg);
         if (timeout == undefined) timeout = setTimeout(tryCrunch, LOAD_TIMEOUT*1000);
