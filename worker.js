@@ -126,7 +126,8 @@ amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
             // and forget a `id.toString()`, creating huge blobs of zeros,
             // which makes Sequelize panic because the packets are 2MB.
             // May god forgive me for deploying debug code…
-            await ch.nack(m, false, false);
+            await ch.nack(msg, false, false);
+            return;
         }
 
         participants.add(msg.content.toString());
