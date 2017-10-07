@@ -63,6 +63,14 @@ select
     sum(ability_aa_damage_dealt),
     sum(ability_aacrit_damage_true),
     sum(ability_aacrit_damage_dealt),
+    sum(heal_heal_hero),
+    sum(heal_healed_hero),
+    sum(heal_heal_other),
+    sum(heal_healed_other),
+    sum(heal_rcvd_heal_hero),
+    sum(heal_rcvd_healed_hero),
+    sum(heal_rcvd_heal_other),
+    sum(heal_rcvd_healed_other),
     _ph_item_uses_insert
 from participant_phases ph
 join participant p on ph.participant_api_id = p.api_id
