@@ -17,6 +17,7 @@ select
 
     -- special player_point facts
     max(p.trueskill_mu-p.trueskill_sigma) as trueskill_max,
+    max(p.trueskill_ranked_mu-p.trueskill_ranked_sigma) as trueskill_ranked_max,
     sum(p.trueskill_delta) as trueskill_delta,
     sum(p.trueskill_mu) as trueskill_mu,
     sum(p.trueskill_sigma) as trueskill_sigma,
@@ -54,6 +55,7 @@ updated_at = case when values(updated_at) > updated_at then values(updated_at) e
 played = played + values(played),
 wins = wins + values(wins),
 trueskill_max = case when values(trueskill_max) > trueskill_max then values(trueskill_max) else trueskill_max end,
+trueskill_ranked_max = case when values(trueskill_ranked_max) > trueskill_ranked_max then values(trueskill_ranked_max) else trueskill_ranked_max end,
 trueskill_delta = trueskill_delta + values(trueskill_delta),
 trueskill_mu = trueskill_mu + values(trueskill_mu),
 trueskill_sigma = trueskill_sigma + values(trueskill_sigma),
