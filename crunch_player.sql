@@ -17,7 +17,7 @@ select
 
     -- special player_point facts
     max(p.trueskill_mu-p.trueskill_sigma) as trueskill_max,
-    max(p.trueskill_ranked_mu-p.trueskill_ranked_sigma) as trueskill_ranked_max,
+    max(p_i.trueskill_ranked_mu-p_i.trueskill_ranked_sigma) as trueskill_ranked_max,
     sum(p.trueskill_delta) as trueskill_delta,
     sum(p.trueskill_mu) as trueskill_mu,
     sum(p.trueskill_sigma) as trueskill_sigma,
@@ -38,6 +38,7 @@ select
     sum(p_s.impact_score) as impact_score
 from participant p
 join participant_stats p_s on (p_s.participant_api_id = p.api_id)
+left outer join participant_items p_i on (p_i.participant_api_id = p.api_id)
 -- left outer join users u on p.player_api_id = u.player_api_id  -- u.access_type is null -> unregistered
 join filter f on (f.dimension_on = 'player' and (f.name = 'all' or f.id in (select gpf.filter_id from global_point_filters gpf where gpf.match_api_id = p.match_api_id)))
 join series s on (p_s.created_at between s.start and s.end and s.dimension_on = 'player')
