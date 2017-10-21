@@ -29,7 +29,9 @@ const RABBITMQ_URI = process.env.RABBITMQ_URI,
     BATCHSIZE = parseInt(process.env.BATCHSIZE) || 1000,
     LOAD_TIMEOUT = parseInt(process.env.LOAD_TIMEOUT) || 5,  // s
     // wait time before next batch
-    SLOWMODE = parseFloat(process.env.SLOWMODE) || 0;  // s
+    SLOWMODE = parseFloat(process.env.SLOWMODE) || 0,  // s
+    // chance that a message will be taken into account for statistics (drops others for performance)
+    RELIABILITY = parseFloat(process.env.RELIABILITY) || 1.0;
 
 const logger = new (winston.Logger)({
         transports: [
@@ -126,6 +128,12 @@ amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
             // and forget a `id.toString()`, creating huge blobs of zeros,
             // which makes Sequelize panic because the packets are 2MB.
             // May god forgive me for deploying debug code…
+            await ch.nack(msg, false, false);
+            return;
+        }
+
+        if (RELIABILITY < 1.0 && Math.random() > RELIABILITY) {
+            // randomly drop some data :)
             await ch.nack(msg, false, false);
             return;
         }
