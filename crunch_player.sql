@@ -15,14 +15,6 @@ select
     sum(cast(p.winner as INT)) as wins,
     sum(p_s.duration) as time_spent,
 
-    -- special player_point facts
-    max(p.trueskill_mu-p.trueskill_sigma) as trueskill_max,
-    max(p_i.trueskill_ranked_mu-p_i.trueskill_ranked_sigma) as trueskill_ranked_max,
-    sum(p.trueskill_delta) as trueskill_delta,
-    sum(p.trueskill_mu) as trueskill_mu,
-    sum(p.trueskill_sigma) as trueskill_sigma,
-    0 as elo,
-
     sum(p_s.kills) as kills,
     sum(p_s.deaths) as deaths,
     sum(p_s.assists) as assists,
@@ -41,7 +33,6 @@ select
 from participant p
 join participant_stats p_s on (p_s.participant_api_id = p.api_id)
 left outer join participant_items p_i on (p_i.participant_api_id = p.api_id)
--- left outer join users u on p.player_api_id = u.player_api_id  -- u.access_type is null -> unregistered
 join filter f on (f.dimension_on = 'player' and (f.name = 'all' or f.id in (select gpf.filter_id from global_point_filters gpf where gpf.match_api_id = p.match_api_id)))
 join series s on (p_s.created_at between s.start and s.end and s.dimension_on = 'player')
 join hero h on (p.hero_id = h.id or h.name = 'all')
@@ -57,13 +48,7 @@ on duplicate key update
 updated_at = case when values(updated_at) > updated_at then values(updated_at) else updated_at end,
 played = played + values(played),
 wins = wins + values(wins),
-trueskill_max = case when values(trueskill_max) > trueskill_max then values(trueskill_max) else trueskill_max end,
-trueskill_ranked_max = case when values(trueskill_ranked_max) > trueskill_ranked_max then values(trueskill_ranked_max) else trueskill_ranked_max end,
-trueskill_delta = trueskill_delta + values(trueskill_delta),
-trueskill_mu = trueskill_mu + values(trueskill_mu),
-trueskill_sigma = trueskill_sigma + values(trueskill_sigma),
 time_spent = time_spent + values(time_spent),
-elo = elo + values(elo),
 kills = kills + values(kills),
 deaths = deaths + values(deaths),
 assists = assists + values(assists),
