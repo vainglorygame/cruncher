@@ -36,14 +36,14 @@ select
 from participant p
 join participant_stats p_s on (p_s.participant_api_id = p.api_id)
 left outer join participant_items p_i on (p_i.participant_api_id = p.api_id)
-join filter f on (f.dimension_on = 'global' and (f.name = 'all' or f.id in (select gpf.filter_id from global_point_filters gpf where gpf.match_api_id = p.match_api_id)))
-join series s on (p_s.created_at between s.start and s.end and s.dimension_on = 'global')
-join hero h on (p.hero_id = h.id or h.name = 'all')
-join role r on (p.role_id = r.id or r.name = 'all')
-join region reg on (p.shard_id = reg.name or reg.name = 'all')
-join game_mode gm on ((p.game_mode_id = gm.id and s.show_in_web = true) or gm.name = 'all')
-join skill_tier st on ((p.skill_tier between st.start and st.end and s.show_in_web = true) or st.name = 'all')  -- no daily
-join build b on ((  -- only per patch global
+join filter f use index() on (f.dimension_on = 'global' and (f.name = 'all' or f.id in (select gpf.filter_id from global_point_filters gpf where gpf.match_api_id = p.match_api_id)))
+join series s use index() on (p_s.created_at between s.start and s.end and s.dimension_on = 'global')
+join hero h use index() on (p.hero_id = h.id or h.name = 'all')
+join role r use index() on (p.role_id = r.id or r.name = 'all')
+join region reg use index() on (p.shard_id = reg.name or reg.name = 'all')
+join game_mode gm use index() on ((p.game_mode_id = gm.id and s.show_in_web = true) or gm.name = 'all')
+join skill_tier st use index() on ((p.skill_tier between st.start and st.end and s.show_in_web = true) or st.name = 'all')  -- no daily
+join build b use index() on ((  -- only per patch global
     s.show_in_web = true and
     gm.name = 'all' and
     reg.name = 'all' and
