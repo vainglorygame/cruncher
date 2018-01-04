@@ -46,6 +46,7 @@ join skill_tier st use index() on ((p.skill_tier between st.start and st.end and
 join build b use index() on ((  -- only per patch global
     s.show_in_web = true and
     gm.name = 'all' and
+    p.game_mode_id in (select id from game_mode where name in ('casual', 'ranked')) and  -- only casual / ranked
     reg.name = 'all' and
 
     (
