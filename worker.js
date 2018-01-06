@@ -15,6 +15,7 @@ const amqp = require("amqplib"),
     fs = Promise.promisifyAll(require("fs")),
     winston = require("winston"),
     loggly = require("winston-loggly-bulk"),
+    datadog = require("winston-datadog"),
     sleep = require("sleep-promise"),
     Seq = require("sequelize");
 
@@ -23,6 +24,7 @@ const RABBITMQ_URI = process.env.RABBITMQ_URI,
     QUEUE = process.env.QUEUE || "crunch",
     SCRIPT = process.env.SCRIPT || "crunch_global.sql",
     LOGGLY_TOKEN = process.env.LOGGLY_TOKEN,
+    DATADOG_TOKEN = process.env.DATADOG_TOKEN,
     // size of connection pool
     MAXCONNS = parseInt(process.env.MAXCONNS) || 3,
     // number of participants to calculate at once
@@ -50,6 +52,12 @@ if (LOGGLY_TOKEN)
         tags: ["backend", "cruncher", QUEUE],
         json: true
     });
+
+// datadog integration
+if (DATADOG_TOKEN)
+    logger.add(new datadog({
+        api_key: DATADOG_TOKEN
+    }), null, true);
 
 
 amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
