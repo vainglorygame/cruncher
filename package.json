@@ -10,7 +10,6 @@
     "sequelize": "^4.4.2",
     "sleep-promise": "^2.0.0",
     "winston": "^2.3.1",
-    "winston-datadog": "^1.1.0",
     "winston-loggly-bulk": "^2.0.0"
   },
   "devDependencies": {},
