@@ -92,7 +92,7 @@ amqp.connect(RABBITMQ_URI).then(async (rabbit) => {
         const pad = (i) => i.toString().padStart(3, "0");
         if (doCreate) {  // insert
             return active_items.map((i) =>
-                `sum(column_get(${tableName}.item_uses, '${i}' as int)) ` +
+                `sum(coalesce(column_get(${tableName}.item_uses, '${i}' as int), 0)) ` +
                     `as item_${pad(i)}_use`
             ).join(",\n");
         } else {
