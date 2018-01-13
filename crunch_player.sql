@@ -37,7 +37,8 @@ join filter f on (f.dimension_on = 'player' and (f.name = 'all' or f.id in (sele
 join series s on (p_s.created_at between s.start and s.end and s.dimension_on = 'player')
 join hero h on (p.hero_id = h.id or h.name = 'all')
 join role r on ((p.role_id = r.id and h.name = 'all') or r.name = 'all')  -- do not cross hero x role
-join game_mode gm on ((p.game_mode_id = gm.id and h.name = 'all' and r.name = 'all') or gm.name = 'all')  -- do not cross mode x role / mode x hero
+-- join game_mode gm on ((p.game_mode_id = gm.id and h.name = 'all' and r.name = 'all') or gm.name = 'all')  -- do not cross mode x role / mode x hero
+join game_mode gm on (p.game_mode_id = gm.id or gm.name = 'all')
 
 where p.api_id in (:participant_api_ids)
 
