@@ -33,7 +33,7 @@ select
     sum(p_s.turret_captures) as turret_captures,
     sum(p_s.gold) as gold,
     sum(p_s.impact_score) as impact_score,
-    sum(p_i.surrender) as surrender,
+    sum(coalesce(p_i.surrender, 0)) as surrender,
     _p_i_item_uses_insert
 from participant p
 join participant_stats p_s on (p_s.participant_api_id = p.api_id)
